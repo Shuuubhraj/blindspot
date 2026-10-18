@@ -50,21 +50,21 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 
 | Live scan | Assessment overview |
 |---|---|
-| ![Live scan](screenshots/live-scan.jpg) | ![Assessment overview](screenshots/overview.jpg) |
+| ![Live scan](screenshots/during%20scannig%20phase.jpg) | ![Assessment overview](screenshots/Findings%20Screen.jpg) |
 
 | AI Findings | AI finding detail |
 |---|---|
-| ![AI Findings](screenshots/ai-findings.jpg) | ![AI finding detail](screenshots/ai-finding-detail.jpg) |
+| ![AI Findings](screenshots/Ai%20Findings%201.jpg) | ![AI finding detail](screenshots/Ai%20Findings%202.jpg) |
 
 | Rule library | System status |
 |---|---|
-| ![Rule library](screenshots/rule-library.jpg) | ![System status](screenshots/system-status.jpg) |
+| ![Rule library](screenshots/Rule%20Library.jpg) | ![System status](screenshots/system%201.jpg) |
 
 | Scan history | AI setup |
 |---|---|
-| ![Scan history](screenshots/scan-history.jpg) | ![AI setup](screenshots/system-ai-setup.jpg) |
+| ![Scan history](screenshots/Scan%20History.jpg) | ![AI setup](screenshots/system%202.jpg) |
 
-A full sample report (DIVA APK) is attached under [`samples/`](samples/blindspot-sample-report-diva.pdf).
+A full sample report (DIVA APK) is attached under [`samples/`](samples/BlindSpot%20Sample%20Report%20-%20DIVA%20apk.pdf).
 
 ## How it works
 
