@@ -60,6 +60,10 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 |---|---|
 | ![Rule library](screenshots/rule-library.jpg) | ![System status](screenshots/system-status.jpg) |
 
+| Scan history | AI setup |
+|---|---|
+| ![Scan history](screenshots/scan-history.jpg) | ![AI setup](screenshots/system-ai-setup.jpg) |
+
 A full sample report (DIVA APK) is attached under [`samples/`](samples/blindspot-sample-report-diva.pdf).
 
 ## How it works
