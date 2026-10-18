@@ -100,8 +100,16 @@ Upload APK → Validate → Extract → Metadata → Decompile (JADX + apktool)
 
 ### Setup (Windows PowerShell)
 
+**1. Clone the repository** (needs [Git](https://git-scm.com/downloads)):
+
 ```powershell
+git clone https://github.com/Shuuubhraj/blindspot.git
 cd blindspot\backend
+```
+
+**2. Create a virtual environment and install:**
+
+```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e .
@@ -109,8 +117,16 @@ pip install -e .
 
 ### Setup (Linux / macOS)
 
+**1. Clone the repository:**
+
 ```bash
+git clone https://github.com/Shuuubhraj/blindspot.git
 cd blindspot/backend
+```
+
+**2. Create a virtual environment and install:**
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
