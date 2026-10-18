@@ -64,7 +64,7 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 |---|---|
 | ![Scan history](screenshots/Scan%20History.jpg) | ![AI setup](screenshots/system%202.jpg) |
 
-A full sample report (DIVA APK) is attached under [`samples/`](samples/BlindSpot%20Sample%20Report%20-%20DIVA%20apk.pdf).
+A full sample report (DIVA APK) is attached under [`samples/`](samples/blindspot-sample-report-diva.pdf).
 
 ## How it works
 
