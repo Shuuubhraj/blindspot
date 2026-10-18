@@ -48,28 +48,35 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 
 ## Screenshots
 
-| Live scan | Assessment overview |
-|---|---|
-| ![Live scan](screenshots/during%20scannig%20phase.jpg) | ![Assessment overview](screenshots/Findings%20Screen.jpg) |
+<p align="center"><b>Live scan</b> — pipeline, live stats, and the real-time engine feed</p>
+<p align="center"><img src="screenshots/during%20scannig%20phase.jpg" width="800" /></p>
 
-| AI Findings | AI finding detail |
-|---|---|
-| ![AI Findings](screenshots/Ai%20Findings%201.jpg) | ![AI finding detail](screenshots/Ai%20Findings%202.jpg) |
+<p align="center"><b>Assessment overview</b> — severity breakdown and package metadata</p>
+<p align="center"><img src="screenshots/Findings%20Screen.jpg" width="800" /></p>
 
-| Rule library | System status |
-|---|---|
-| ![Rule library](screenshots/Rule%20Library.jpg) | ![System status](screenshots/system%201.jpg) |
+<p align="center"><b>AI Findings</b> — every AI finding as a full card</p>
+<p align="center"><img src="screenshots/Ai%20Findings%201.jpg" width="800" /></p>
 
-| Scan history | AI setup |
-|---|---|
-| ![Scan history](screenshots/Scan%20History.jpg) | ![AI setup](screenshots/system%202.jpg) |
+<p align="center"><b>AI finding detail</b> — justification, proof of concept, remediation</p>
+<p align="center"><img src="screenshots/Ai%20Findings%202.jpg" width="800" /></p>
+
+<p align="center"><b>Rule library</b> — all 120 detection rules, searchable</p>
+<p align="center"><img src="screenshots/Rule%20Library.jpg" width="800" /></p>
+
+<p align="center"><b>System status</b> — tool readiness and resource limits</p>
+<p align="center"><img src="screenshots/system%201.jpg" width="800" /></p>
+
+<p align="center"><b>Scan history</b> — reopen, export, or delete past assessments</p>
+<p align="center"><img src="screenshots/Scan%20History.jpg" width="800" /></p>
+
+<p align="center"><b>AI setup</b> — On-device model configuration</p>
+<p align="center"><img src="screenshots/system%202.jpg" width="800" /></p>
 
 <p align="center">
   <a href="samples/blindspot-sample-report-diva.pdf">
-    <img src="https://img.shields.io/badge/View_Sample_Report-DIVA_APK-0071e3?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="View sample report" />
+    <img src="assets/sample-report-btn.svg" width="440" alt="View sample report" />
   </a>
 </p>
-
 ## How it works
 
 ```
