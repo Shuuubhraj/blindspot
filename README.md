@@ -73,7 +73,7 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 <p align="center"><b>AI setup</b> - On-device model configuration</p>
 
 <p align="center">
-  <a href="samples/blindspot-sample-report-diva.pdf">
+  <a href="https://github.com/Shuuubhraj/blindspot/blob/main/samples/blindspot-sample-report-diva.pdf">
     <img src="assets/sample-report-btn.svg" width="440" alt="View sample report" />
   </a>
 </p>
