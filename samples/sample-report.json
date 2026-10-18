@@ -1,0 +1,2406 @@
+{
+  "scan_id": "177cd39efdd74e129f0d7c701e182887",
+  "file_name": "test-app.apk",
+  "sha256": "d9a3eb9bb6057c7124ae8959705dde86e681260e783853830492bbbd921bc722",
+  "file_size": 2234,
+  "status": "completed",
+  "created_at": "2026-10-17T19:16:02.550598",
+  "finished_at": "2026-10-17T19:16:07.208583",
+  "package_name": "com.blindspot.testapp",
+  "app_name": "@string/app_name",
+  "version_name": "1.0",
+  "version_code": "1",
+  "counts": {
+    "critical": 2,
+    "high": 25,
+    "medium": 28,
+    "low": 0,
+    "informational": 5
+  },
+  "total_findings": 60,
+  "owasp_counts": {
+    "M3": 3,
+    "M10": 8,
+    "M1": 6,
+    "M8": 15,
+    "M5": 13,
+    "M4": 5,
+    "M9": 8,
+    "M6": 2,
+    "M7": 1
+  },
+  "owasp_names": {
+    "M1": "Improper Credential Usage",
+    "M2": "Inadequate Supply Chain Security",
+    "M3": "Insecure Authentication/Authorization",
+    "M4": "Insufficient Input/Output Validation",
+    "M5": "Insecure Communication",
+    "M6": "Inadequate Privacy Controls",
+    "M7": "Insufficient Binary Protections",
+    "M8": "Security Misconfiguration",
+    "M9": "Insecure Data Storage",
+    "M10": "Insufficient Cryptography"
+  },
+  "findings": [
+    {
+      "finding_id": "177cd39e-0055",
+      "title": "Hardcoded authentication bypass / backdoor credential",
+      "severity": "critical",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-A02",
+      "category": "auth",
+      "owasp": [
+        "M3"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/AuthBypass.java",
+      "line_start": 17,
+      "line_end": 17,
+      "snippet": "       15 | \n       16 |     public boolean login(Context ctx, String email, String password) {\n>>>    17 |         if (email.equals(\"admin\") && password.equals(\"admin\")) {\n       18 |             return true;\n       19 |         }",
+      "description": "1 hardcoded credential comparison(s) or debug-gated auth bypass marker(s) found. Anyone who decompiles the APK can read these credentials and authenticate without authorization.",
+      "impact": "",
+      "remediation": "Remove all hardcoded credentials and debug bypasses from the client. Authentication must always be verified server-side against credentials the client never stores. Gate any test login helpers behind build flavors that never ship to production, and add CI checks that fail the release build if bypass markers are present.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-A02",
+          "title": "Hardcoded authentication bypass / backdoor credential"
+        }
+      ],
+      "severity_rationale": "Hardcoded credentials are directly extractable from the APK and grant authentication as another user: full account compromise with trivial effort (Critical).",
+      "confidence_rationale": "The literal credential comparison is present verbatim in the decompiled source at the cited line; no inference required.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0047",
+      "title": "Hardcoded encryption key",
+      "severity": "critical",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-C05",
+      "category": "crypto",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 29,
+      "line_end": 29,
+      "snippet": "       27 | \n       28 |     public byte[] encryptDes(byte[] data) throws Exception {\n>>>    29 |         SecretKeySpec key = new SecretKeySpec(\"12345678\".getBytes(), \"DES\");\n       30 |         Cipher c = Cipher.getInstance(\"DES\");\n       31 |         c.init(Cipher.ENCRYPT_MODE, key);",
+      "description": "Hardcoded encryption key material in 1 location(s).",
+      "impact": "",
+      "remediation": "Do not embed keys. Generate keys at runtime with KeyGenerator and a SecureRandom, or store them in the Android Keystore (AndroidKeyStore) so key material never enters app memory as a literal. For data that must be decryptable off-device, fetch keys from a server over TLS after authentication.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-C05",
+          "title": "Hardcoded encryption key"
+        }
+      ],
+      "severity_rationale": "A hardcoded key is recoverable by decompiling the APK, so every ciphertext produced with it is effectively plaintext to an attacker: total loss of confidentiality.",
+      "confidence_rationale": "The SecretKeySpec constructor receives a string literal, a literal byte array, or a variable provably assigned a literal in the preceding lines.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0056",
+      "title": "Hardcoded test accounts in authentication code",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-A03",
+      "category": "auth",
+      "owasp": [
+        "M1",
+        "M3"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/AuthBypass.java",
+      "line_start": 13,
+      "line_end": 13,
+      "snippet": "       11 | public class AuthBypass {\n       12 | \n>>>    13 |     private static final String TEST_ACCOUNT = \"test@test.com\";\n       14 |     private static final String TEST_PASSWORD = \"test123\";\n       15 | \n\n       12 | \n       13 |     private static final String TEST_ACCOUNT = \"test@test.com\";\n>>>    14 |     private static final String TEST_PASSWORD = \"test123\";\n       15 | \n       16 |     public boolean login(Context ctx, String email, String password) {",
+      "description": "2 hardcoded test-account literal(s) found in authentication code. Test accounts shipped in production builds act as standing backdoors.",
+      "impact": "",
+      "remediation": "Remove test accounts from production builds. Provision test users in a staging backend instead, and add a release-gate check that fails the build when known test-account literals appear in auth code.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-A03",
+          "title": "Hardcoded test accounts in authentication code"
+        }
+      ],
+      "severity_rationale": "Test credentials are extractable from the APK and frequently carry elevated or shared access; compromise is realistic (High).",
+      "confidence_rationale": "The test-account literal appears verbatim at the cited line inside authentication-related code.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0048",
+      "title": "Password hashed without a salt",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-C10",
+      "category": "crypto",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-916"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 20,
+      "line_end": 20,
+      "snippet": "       18 |     public String hashPassword(String password) throws Exception {\n       19 |         MessageDigest md = MessageDigest.getInstance(\"MD5\");\n>>>    20 |         byte[] digest = md.digest(password.getBytes(\"UTF-8\"));\n       21 |         StringBuilder sb = new StringBuilder();\n       22 |         for (byte b : digest) {",
+      "description": "Password hashed without a salt in 1 location(s).",
+      "impact": "",
+      "remediation": "Never store passwords as plain digests. Use Argon2id, bcrypt or scrypt with a unique random salt per password via a vetted library.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-C10",
+          "title": "Password hashed without a salt"
+        }
+      ],
+      "severity_rationale": "Unsalted fast hashes let attackers use rainbow tables and GPU brute force to recover passwords, compromising user accounts.",
+      "confidence_rationale": "A digest() call on a password-like value with a weak MessageDigest and no salt keyword within 8 lines; the salt could theoretically be mixed in farther away.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0049",
+      "title": "Cryptographic key material stored in SharedPreferences",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-C13",
+      "category": "crypto",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-312"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 26,
+      "line_end": 26,
+      "snippet": "       24 |         prefs.edit()\n       25 |                 .putString(\"username\", username)\n>>>    26 |                 .putString(\"password\", password)\n       27 |                 .apply();\n       28 | \n\n       23 |         SharedPreferences prefs =\n       24 |                 ctx.getSharedPreferences(\"session\", Context.MODE_PRIVATE);\n>>>    25 |         prefs.edit().putString(\"auth_token\",\n       26 |                 \"hardcoded-bearer-token-abc123\").apply();\n       27 |         return false;\n\n       22 |                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,\n       23 |                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);\n>>>    24 |         prefs.edit().putString(\"auth_token\", token).apply();\n       25 |     }\n       26 | }",
+      "description": "Possible key material in SharedPreferences in 3 location(s).",
+      "impact": "",
+      "remediation": "Store keys in the Android Keystore (AndroidKeyStore) or use EncryptedSharedPreferences from androidx.security for sensitive values; never persist raw key material in plaintext XML.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-C13",
+          "title": "Cryptographic key material stored in SharedPreferences"
+        }
+      ],
+      "severity_rationale": "Key material in plaintext preferences XML is exposed on rooted devices and via backups, defeating the encryption it is meant to support.",
+      "confidence_rationale": "The preference name matches key/secret/token/password-like patterns, but the stored value was not proven to be key material statically.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0022",
+      "title": "Application is debuggable",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M01",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-489"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "application tag parsed with debuggable=true",
+      "description": "Application tag sets android:debuggable=\"true\". The app can be attached by a debugger on any device with adb access.",
+      "impact": "",
+      "remediation": "Remove android:debuggable=\"true\" from the release manifest (or set it to false). Keep debuggable builds internal only; verify the shipped APK with `aapt dump badging` / apkanalyzer and in CI.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M01",
+          "title": "Application is debuggable"
+        }
+      ],
+      "severity_rationale": "HIGH: a debuggable release build exposes the running process to debugger attachment on user devices, enabling memory inspection, secret extraction, and bypass of local protections.",
+      "confidence_rationale": "HIGH: the flag is a literal boolean on the application tag, parsed directly from the decoded manifest.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0024",
+      "title": "Cleartext HTTP traffic explicitly allowed",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M03",
+      "category": "manifest",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-319"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:usesCleartextTraffic=\"true\"",
+      "description": "android:usesCleartextTraffic=\"true\": the app explicitly permits cleartext HTTP traffic, so sensitive data may traverse the network unencrypted.",
+      "impact": "",
+      "remediation": "Remove android:usesCleartextTraffic=\"true\" (or set it to false) and migrate endpoints to HTTPS. If a specific legacy host must stay on HTTP, scope the exception to that host in a network security config instead of allowing cleartext globally.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M03",
+          "title": "Cleartext HTTP traffic explicitly allowed"
+        }
+      ],
+      "severity_rationale": "HIGH: cleartext HTTP exposes credentials, tokens, and PII to any passive network observer; the opt-out is global to the app.",
+      "confidence_rationale": "HIGH: the attribute value is read directly from the decoded manifest application tag.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0028",
+      "title": "Exported activity without permission guard",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M07",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-926"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:exported=\"true\" on <activity android:name=\"com.blindspot.testapp.MainActivity\"> (no android:permission)\n\nandroid:exported=\"true\" on <activity android:name=\"com.blindspot.testapp.DebugActivity\"> (no android:permission)",
+      "description": "2 exported activities with no android:permission: com.blindspot.testapp.MainActivity, com.blindspot.testapp.DebugActivity.",
+      "impact": "",
+      "remediation": "Set android:exported=\"false\" for activities that need no external access. For activities that must be reachable, protect them with a signature-level android:permission and validate all incoming intent extras.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M07",
+          "title": "Exported activity without permission guard"
+        }
+      ],
+      "severity_rationale": "HIGH: an unguarded exported activity is directly launchable by any app on the device, enabling intent spoofing, flow bypass, and data extraction through extras.",
+      "confidence_rationale": "HIGH: exported state and the absence of a permission attribute come straight from the parsed activity declarations.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0029",
+      "title": "Exported broadcast receiver without permission guard",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M09",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-927"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:exported=\"true\" on <receiver android:name=\"com.blindspot.testapp.SmsReceiver\"> (no android:permission)",
+      "description": "1 exported receiver(s) with no android:permission: com.blindspot.testapp.SmsReceiver.",
+      "impact": "",
+      "remediation": "Set android:exported=\"false\" for receivers handling internal or system broadcasts. For receivers that must accept external broadcasts, require a signature-level android:permission and validate all extras and sender identity.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M09",
+          "title": "Exported broadcast receiver without permission guard"
+        }
+      ],
+      "severity_rationale": "HIGH: any app on the device can send crafted broadcasts to an unguarded exported receiver, driving app logic with attacker-controlled extras.",
+      "confidence_rationale": "HIGH: exported state and the absence of a permission attribute come straight from the parsed receiver declarations.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0030",
+      "title": "Exported content provider without read/write permission",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M10",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-926"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:exported=\"true\" on <provider android:name=\"com.blindspot.testapp.TestProvider\" android:authorities=\"com.blindspot.testapp.files\"> (no readPermission/writePermission)",
+      "description": "1 exported provider(s) with no readPermission/writePermission: com.blindspot.testapp.TestProvider.",
+      "impact": "",
+      "remediation": "Set android:exported=\"false\" for providers that are app-internal. For providers that must be shared, set android:readPermission and android:writePermission (signature level where possible), use path-permissions for granularity, and validate all query parameters.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M10",
+          "title": "Exported content provider without read/write permission"
+        }
+      ],
+      "severity_rationale": "HIGH: an unguarded exported provider exposes its backing data to arbitrary apps for read and write, enabling theft and tampering of app data.",
+      "confidence_rationale": "HIGH: exported state, authorities, and the absence of read/write permission attributes come straight from the parsed provider declarations.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0041",
+      "title": "usesCleartextTraffic enabled in application manifest",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-N01",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-319"
+      ],
+      "file_path": "extracted/AndroidManifest.decoded.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "Application permits cleartext (HTTP) traffic globally.",
+      "impact": "",
+      "remediation": "Remove android:usesCleartextTraffic=\"true\" from the manifest (the default is false) and serve all traffic over HTTPS. If specific legacy hosts still require HTTP, use a network security configuration with narrowly scoped domain-config exceptions instead of a global flag.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N01",
+          "title": "usesCleartextTraffic enabled in application manifest"
+        }
+      ],
+      "severity_rationale": "A global cleartext opt-in disables Android's default plaintext protection for every network request, enabling passive eavesdropping and active tampering.",
+      "confidence_rationale": "Direct manifest attribute evidence; no inference required.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0042",
+      "title": "Hostname verification disabled",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-N04",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-297"
+      ],
+      "file_path": "tests/fixtures/vuln_app/TrustAllCerts.java",
+      "line_start": 37,
+      "line_end": 37,
+      "snippet": "       35 |         sc.init(null, TRUST_ALL, new java.security.SecureRandom());\n       36 |         HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());\n>>>    37 |         HostnameVerifier allowAll = SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;\n       38 |         HttpsURLConnection.setDefaultHostnameVerifier(allowAll);\n       39 |     }",
+      "description": "1 hostname-verification bypass(es) found.",
+      "impact": "",
+      "remediation": "Use the strict default hostname verifier (HttpsURLConnection.getDefaultHostnameVerifier()). If you must customize, compare against an allow-list of expected hostnames instead of returning true.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N04",
+          "title": "Hostname verification disabled"
+        }
+      ],
+      "severity_rationale": "High: an attacker with any CA-issued certificate can impersonate any host the app connects to.",
+      "confidence_rationale": "Literal ALLOW_ALL_HOSTNAME_VERIFIER tokens or source-verified verify() bodies that only return true.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0044",
+      "title": "Custom SSLSocketFactory that skips certificate verification",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-N17",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-295"
+      ],
+      "file_path": "tests/fixtures/vuln_app/TrustAllCerts.java",
+      "line_start": 34,
+      "line_end": 34,
+      "snippet": "       32 | \n       33 |     public void install() throws Exception {\n>>>    34 |         SSLContext sc = SSLContext.getInstance(\"TLS\");\n       35 |         sc.init(null, TRUST_ALL, new java.security.SecureRandom());\n       36 |         HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());",
+      "description": "1 custom SSL socket factory / context bypass(es).",
+      "impact": "",
+      "remediation": "Remove the custom factory and use the platform default SSLContext. If customization is required, delegate verification to the default TrustManager or implement proper pinning.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N17",
+          "title": "Custom SSLSocketFactory that skips certificate verification"
+        }
+      ],
+      "severity_rationale": "High: bypassing certificate verification at the socket layer exposes all TLS traffic to interception.",
+      "confidence_rationale": "Trust-all indicators co-located with SSLContext/socket-factory setup; manual review should confirm the factory is installed on real connections.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0035",
+      "title": "Hardcoded credentials in source code",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-S01",
+      "category": "storage",
+      "owasp": [
+        "M1"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/HardcodedSecrets.java",
+      "line_start": 13,
+      "line_end": 13,
+      "snippet": "       11 | \n       12 |     public String getClientSecret() {\n>>>    13 |         String clientSecret = \"client_secret_9f8e7d6c5b4a\";\n       14 |         return clientSecret;\n       15 |     }\n\n       12 | \n       13 |     private static final String TEST_ACCOUNT = \"test@test.com\";\n>>>    14 |     private static final String TEST_PASSWORD = \"test123\";\n       15 | \n       16 |     public boolean login(Context ctx, String email, String password) {",
+      "description": "Found 2 hardcoded credential assignment(s) in decompiled sources.",
+      "impact": "",
+      "remediation": "Remove the hardcoded credential. Load it from a server-side session at runtime, use Android Keystore-backed tokens, or gate the functionality behind user authentication. Never ship credentials inside the APK.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S01",
+          "title": "Hardcoded credentials in source code"
+        }
+      ],
+      "severity_rationale": "A hardcoded password/secret ships with the APK and is recoverable by decompilation; if valid it may grant unauthorized access.",
+      "confidence_rationale": "The variable name indicates a credential and the assigned value is a non-placeholder string literal on a real source line.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0036",
+      "title": "Private key material embedded in the package",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-S03",
+      "category": "storage",
+      "owasp": [
+        "M1"
+      ],
+      "cwe": [
+        "CWE-321"
+      ],
+      "file_path": "extracted/assets/private_key.pem",
+      "line_start": 1,
+      "line_end": 1,
+      "snippet": ">>>     1 | -----BEGIN RSA PRIVATE KEY-----\n        2 | FAKE TEST KEY \u2014 NOT REAL.\n        3 | Synthetic fixture for the Blindspot scanner test suite.",
+      "description": "Found 1 embedded private-key material occurrence(s).",
+      "impact": "",
+      "remediation": "Remove private keys from the package. Use Android Keystore for device-generated keys and fetch any required key material from a server over an authenticated channel at runtime.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S03",
+          "title": "Private key material embedded in the package"
+        }
+      ],
+      "severity_rationale": "A private key inside the APK is extractable by anyone and defeats the purpose of asymmetric cryptography.",
+      "confidence_rationale": "PEM private-key headers were matched literally, or a file with a key-container extension was found in assets/res.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0051",
+      "title": "WebView JavaScript enabled",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-W01",
+      "category": "webview",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-749"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 23,
+      "line_end": 23,
+      "snippet": "       21 |         WebView wv = new WebView(ctx);\n       22 |         WebSettings s = wv.getSettings();\n>>>    23 |         s.setJavaScriptEnabled(true);\n       24 |         s.setAllowUniversalAccessFromFileURLs(true);\n       25 |         s.setAllowFileAccessFromFileURLs(true);",
+      "description": "JavaScript enabled in a WebView that also exposes an addJavascriptInterface bridge (1 call site(s)). Web content can invoke native Java methods.",
+      "impact": "",
+      "remediation": "Disable JavaScript unless the WebView genuinely needs it. If it is required, only load trusted HTTPS content, validate every URL in shouldOverrideUrlLoading, and never combine JavaScript with an addJavascriptInterface bridge that reaches native functionality.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-W01",
+          "title": "WebView JavaScript enabled"
+        }
+      ],
+      "severity_rationale": "HIGH: JavaScript plus a JS bridge lets loaded web content call into native code; this is the classic WebView bridge-escape configuration. Escalated from MEDIUM because the bridge is present.",
+      "confidence_rationale": "MEDIUM: both calls were found in the same file, but it is not proven that the bridged methods are reachable from untrusted web content or that the WebView loads attacker-controlled pages.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0015",
+      "title": "blindspot aes ecb",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-aes-ecb",
+      "category": "",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-327"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 37,
+      "line_end": 37,
+      "snippet": "        Cipher c = Cipher.getInstance(\"AES/ECB/PKCS5Padding\");",
+      "description": "AES in ECB mode leaks plaintext patterns; use AES/GCM/NoPadding.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-aes-ecb",
+          "title": "blindspot aes ecb"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-C04",
+          "title": "AES used in ECB mode"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0004",
+      "title": "blindspot aws access key",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-aws-access-key",
+      "category": "",
+      "owasp": [
+        "M1"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/HardcodedSecrets.java",
+      "line_start": 10,
+      "line_end": 10,
+      "snippet": "    private static final String AWS_ACCESS_KEY = \"AKIAIOSFODNN7EXAMPLE\";",
+      "description": "Hardcoded AWS access key ID.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-aws-access-key",
+          "title": "blindspot aws access key"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-S02",
+          "title": "Hardcoded API keys and tokens in source code"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0010",
+      "title": "blindspot empty trustmanager",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-empty-trustman",
+      "category": "",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-295"
+      ],
+      "file_path": "tests/fixtures/vuln_app/TrustAllCerts.java",
+      "line_start": 24,
+      "line_end": 25,
+      "snippet": "            public void checkServerTrusted(X509Certificate[] chain, String authType) {\n            }",
+      "description": "Empty checkServerTrusted() trusts any certificate (MITM).",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-empty-trustmanager",
+          "title": "blindspot empty trustmanager"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0001",
+      "title": "blindspot exec concat",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-exec-concat",
+      "category": "",
+      "owasp": [
+        "M4"
+      ],
+      "cwe": [
+        "CWE-78"
+      ],
+      "file_path": "tests/fixtures/vuln_app/CommandInjection.java",
+      "line_start": 13,
+      "line_end": 13,
+      "snippet": "        Process p = Runtime.getRuntime().exec(\"ping -c 1 \" + host);",
+      "description": "OS command built with string concatenation; possible command injection.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-exec-concat",
+          "title": "blindspot exec concat"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-W09",
+          "title": "Command injection via Runtime.exec with concatenated input"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0006",
+      "title": "blindspot hardcoded password",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-hardcoded-pass",
+      "category": "",
+      "owasp": [
+        "M1"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 29,
+      "line_end": 32,
+      "snippet": "        Log.d(TAG, \"login for \" + username + \" password=\" + password);\n\n        File out = new File(Environment.getExternalStorageDirectory(),\n                \"tokens/session.txt\");",
+      "description": "Hardcoded password assigned to a variable. Extractable from the APK.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-hardcoded-password",
+          "title": "blindspot hardcoded password"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-S10",
+          "title": "Sensitive information written to logs"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-A06",
+          "title": "Authentication secrets written to logs or stack traces"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0009",
+      "title": "blindspot sqli concat",
+      "severity": "high",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-sqli-concat",
+      "category": "",
+      "owasp": [
+        "M4"
+      ],
+      "cwe": [
+        "CWE-89"
+      ],
+      "file_path": "tests/fixtures/vuln_app/SqlInjection.java",
+      "line_start": 13,
+      "line_end": 14,
+      "snippet": "        return db.rawQuery(\n                \"SELECT * FROM users WHERE name = '\" + username + \"'\", null);",
+      "description": "SQL query built with string concatenation; use parameterized queries.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-sqli-concat",
+          "title": "blindspot sqli concat"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0020",
+      "title": "blindspot ssl error proceed",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-ssl-error-proc",
+      "category": "",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-295"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 29,
+      "line_end": 31,
+      "snippet": "            public void onReceivedSslError(WebView view, SslErrorHandler handler,\n                                           SslError error) {\n                handler.proceed();",
+      "description": "WebView SSL errors bypassed with handler.proceed() (MITM).",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-ssl-error-proceed",
+          "title": "blindspot ssl error proceed"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-N05",
+          "title": "WebView ignores SSL errors via handler.proceed()"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0014",
+      "title": "blindspot weak cipher",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-weak-cipher",
+      "category": "",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-327"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 30,
+      "line_end": 30,
+      "snippet": "        Cipher c = Cipher.getInstance(\"DES\");",
+      "description": "Weak cipher (DES/DESede/RC4/Blowfish) must not be used.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-weak-cipher",
+          "title": "blindspot weak cipher"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-C03",
+          "title": "Weak cipher algorithm in use (DES, DESede, RC4, Blowfish)"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0017",
+      "title": "blindspot webview file url access",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-webview-file-u",
+      "category": "",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-926"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 24,
+      "line_end": 24,
+      "snippet": "        s.setAllowUniversalAccessFromFileURLs(true);",
+      "description": "WebView file-URL access enabled; allows cross-origin file theft.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-webview-file-url-access",
+          "title": "blindspot webview file url access"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-W03",
+          "title": "WebView file access enabled"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0018",
+      "title": "blindspot webview file url access",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-webview-file-u",
+      "category": "",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-926"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 25,
+      "line_end": 25,
+      "snippet": "        s.setAllowFileAccessFromFileURLs(true);",
+      "description": "WebView file-URL access enabled; allows cross-origin file theft.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-webview-file-url-access",
+          "title": "blindspot webview file url access"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0005",
+      "title": "blindspot world accessible mode",
+      "severity": "high",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-world-accessib",
+      "category": "",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-276"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 23,
+      "line_end": 23,
+      "snippet": "                ctx.getSharedPreferences(\"creds\", Context.MODE_WORLD_READABLE);",
+      "description": "MODE_WORLD_READABLE/WRITEABLE exposes app files to all apps.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-world-accessible-mode",
+          "title": "blindspot world accessible mode"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-S04",
+          "title": "World-readable/writable file modes (MODE_WORLD_*)"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0057",
+      "title": "Token used without expiry or refresh handling",
+      "severity": "medium",
+      "confidence": "low",
+      "validation_status": "heuristic",
+      "rule_id": "BS-A05",
+      "category": "auth",
+      "owasp": [
+        "M3"
+      ],
+      "cwe": [
+        "CWE-613"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 35,
+      "line_end": 35,
+      "snippet": "       33 |         out.getParentFile().mkdirs();\n       34 |         FileOutputStream fos = new FileOutputStream(out);\n>>>    35 |         fos.write((\"token=\" + prefs.getString(\"session_token\", \"\")).getBytes());\n       36 |         fos.close();\n       37 | \n\n       10 | public class StickyBroadcast {\n       11 | \n>>>    12 |     public void announceLogin(Context ctx, String email, String sessionToken) {\n       13 |         Intent i = new Intent(\"com.blindspot.testapp.LOGIN_EVENT\");\n       14 |         i.putExtra(\"email\", email);",
+      "description": "2 file(s) read auth/session tokens with no expiry, refresh, or deadline handling visible in the same file. Static analysis cannot confirm whether the server enforces token expiry or rotates refresh tokens; review the token lifecycle server-side before treating this as a vulnerability.",
+      "impact": "",
+      "remediation": "Issue short-lived access tokens with explicit expiry, validate exp on every use, and implement refresh-token rotation. Enforce expiry server-side; client-side checks are defense in depth, not the control.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-A05",
+          "title": "Token used without expiry or refresh handling"
+        }
+      ],
+      "severity_rationale": "Non-expiring tokens extend the replay window after theft (Medium), but only if the server also fails to enforce expiry, which is unverified.",
+      "confidence_rationale": "No expiry-related check was found near token usage in the client, but token lifetime policy is a server-side property that static analysis cannot observe.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0050",
+      "title": "AES/CBC used without observed integrity protection",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "heuristic",
+      "rule_id": "BS-C14",
+      "category": "crypto",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-327"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 45,
+      "line_end": 45,
+      "snippet": "       43 |         SecretKeySpec key = new SecretKeySpec(KEY, \"AES\");\n       44 |         IvParameterSpec iv = new IvParameterSpec(IV);\n>>>    45 |         Cipher c = Cipher.getInstance(\"AES/CBC/PKCS5Padding\");\n       46 |         c.init(Cipher.ENCRYPT_MODE, key, iv);\n       47 |         return c.doFinal(data);",
+      "description": "AES/CBC without observed integrity protection in 1 file(s).",
+      "impact": "",
+      "remediation": "Prefer Cipher.getInstance(\"AES/GCM/NoPadding\"). If CBC must stay, add encrypt-then-MAC with HmacSHA256 over (IV || ciphertext) using an independent key, and verify the MAC before decrypting.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-C14",
+          "title": "AES/CBC used without observed integrity protection"
+        }
+      ],
+      "severity_rationale": "CBC without a MAC is malleable; where decryption errors are observable this enables padding-oracle decryption.",
+      "confidence_rationale": "AES/CBC is explicit but no javax.crypto.Mac/HmacSHA usage was found in the same file; integrity could still be handled in another class, so this needs review rather than a firm finding.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0023",
+      "title": "Application backup enabled",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M02",
+      "category": "manifest",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-312"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:allowBackup attribute absent; Android defaults it to true",
+      "description": "android:allowBackup is true (defaulted (attribute absent)). App-private data can be extracted via adb backup / Auto Backup and restored elsewhere.",
+      "impact": "",
+      "remediation": "Set android:allowBackup=\"false\" unless backup is a genuine product requirement. If backup is required, use a restrictive android:fullBackupContent / android:dataExtractionRules file that excludes sensitive files, and encrypt sensitive data at rest.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M02",
+          "title": "Application backup enabled"
+        }
+      ],
+      "severity_rationale": "MEDIUM: backup exposes app-private storage to anyone with adb access; impact depends on what sensitive data the app stores, which cannot be fully determined from the manifest alone.",
+      "confidence_rationale": "HIGH: allowBackup is a manifest-level boolean; when the attribute is absent Android defaults it to true, which is documented platform behavior.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0025",
+      "title": "Outdated SDK policy (targetSdk / minSdk)",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M04",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:targetSdkVersion=\"28\"\n\nandroid:minSdkVersion=\"21\"",
+      "description": "Weak SDK policy: targetSdkVersion=28 is below the recommended minimum of 30; minSdkVersion=21 predates the runtime-permission model (API 23): dangerous permissions are granted at install time.",
+      "impact": "",
+      "remediation": "Raise targetSdkVersion to 30 or higher (ideally the latest) and test against the new behavior changes. Raise minSdkVersion to 23+ so the runtime permission model applies on all supported devices.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M04",
+          "title": "Outdated SDK policy (targetSdk / minSdk)"
+        }
+      ],
+      "severity_rationale": "MEDIUM: an outdated targetSdk forfeits platform hardening applied per API level; minSdk < 23 additionally removes runtime permission control on old devices. Both widen the attack surface but do not directly disclose data by themselves.",
+      "confidence_rationale": "HIGH: SDK versions are literal integers from the manifest's <uses-sdk> declaration.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0026",
+      "title": "Dangerous permissions declared",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M05",
+      "category": "manifest",
+      "owasp": [
+        "M6"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "<uses-permission android:name=\"android.permission.READ_SMS\" />\n\n<uses-permission android:name=\"android.permission.SEND_SMS\" />\n\n<uses-permission android:name=\"android.permission.READ_CONTACTS\" />\n\n<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />\n\n<uses-permission android:name=\"android.permission.CAMERA\" />\n\n<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />",
+      "description": "6 dangerous permission(s) across 5 sensitive group(s): Camera: CAMERA; Contacts: READ_CONTACTS; Location: ACCESS_FINE_LOCATION; Microphone: RECORD_AUDIO; SMS: READ_SMS, SEND_SMS.",
+      "impact": "",
+      "remediation": "Request only permissions the app genuinely needs; prefer scoped alternatives (photo picker, approximate location, one-time permissions). Justify each dangerous permission in the Play Data safety section and handle denial gracefully.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M05",
+          "title": "Dangerous permissions declared"
+        }
+      ],
+      "severity_rationale": "MEDIUM: SMS, call-log, and precise/background location permissions are MEDIUM because they enable surveillance-grade data collection; other dangerous groups (contacts, camera, microphone, storage, phone, calendar, sensors) are LOW as privacy-relevant but less directly exfiltrative on their own.",
+      "confidence_rationale": "HIGH: permissions are literal <uses-permission> entries parsed from the manifest; Android's dangerous classification is documented platform behavior.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0027",
+      "title": "Excessive permission scope",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M06",
+      "category": "manifest",
+      "owasp": [
+        "M6"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "permissions: android.permission.CAMERA\n\npermissions: android.permission.READ_CONTACTS\n\npermissions: android.permission.ACCESS_FINE_LOCATION\n\npermissions: android.permission.RECORD_AUDIO\n\npermissions: android.permission.READ_SMS, android.permission.SEND_SMS",
+      "description": "App requests dangerous permissions from 5 distinct sensitive groups (Camera, Contacts, Location, Microphone, SMS): excessive scope for a typical app.",
+      "impact": "",
+      "remediation": "Apply least privilege: drop permission groups not required for core features, request permissions in context (when the feature is used), and re-audit third-party SDKs that may be pulling in permissions via manifest merging.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M06",
+          "title": "Excessive permission scope"
+        }
+      ],
+      "severity_rationale": "MEDIUM: spanning 3+ sensitive groups materially increases the privacy blast radius of compromise or SDK abuse, though scope alone does not prove data is exfiltrated.",
+      "confidence_rationale": "HIGH: group membership is derived from literal manifest permissions against Android's documented dangerous groups.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0031",
+      "title": "Provider grants URI permissions",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M11",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "<provider android:name=\"com.blindspot.testapp.TestProvider\" android:grantUriPermissions=\"true\">",
+      "description": "1 provider(s) set grantUriPermissions=true: com.blindspot.testapp.TestProvider.",
+      "impact": "",
+      "remediation": "Only set grantUriPermissions=\"true\" when temporary URI grants are genuinely needed. Scope grants with <grant-uri-permission> path restrictions, prefer FLAG_GRANT_READ_URI_PERMISSION over write, and revoke grants with revokeUriPermission when done.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M11",
+          "title": "Provider grants URI permissions"
+        }
+      ],
+      "severity_rationale": "MEDIUM: URI grants are a legitimate sharing mechanism, but on an exported provider (or one reachable via intents) careless grants enable confused-deputy data access by third-party apps.",
+      "confidence_rationale": "HIGH: the grantUriPermissions flag is a literal boolean on the parsed provider declaration.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0032",
+      "title": "Intent-filter-reachable component without permission guard",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "heuristic",
+      "rule_id": "BS-M14",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "<activity android:name=\"com.blindspot.testapp.MainActivity\"> declares 1 intent-filter(s), no permission\n\n<receiver android:name=\"com.blindspot.testapp.SmsReceiver\"> declares 1 intent-filter(s), no permission",
+      "description": "Components reachable via intent filters with no permission guard (review whether exposure is intentional): com.blindspot.testapp.MainActivity <activity> (explicitly exported); com.blindspot.testapp.SmsReceiver <receiver> (explicitly exported).",
+      "impact": "",
+      "remediation": "For each listed component decide: if external access is not needed, set android:exported=\"false\"; if it is needed, add a permission guard (signature level where possible) and validate all incoming intents. Record the decision so the exposure is intentional, not accidental.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M14",
+          "title": "Intent-filter-reachable component without permission guard"
+        }
+      ],
+      "severity_rationale": "MEDIUM: intent-filter reachability without any permission check is the standard setup for component-hijacking issues; severity depends on what the component does with attacker input, which needs manual review.",
+      "confidence_rationale": "MEDIUM: reachability is certain from the intent filters, but whether the exposure is a vulnerability or intended behavior (share target, deep link) cannot be decided statically.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0034",
+      "title": "Implicitly exported component (missing android:exported)",
+      "severity": "medium",
+      "confidence": "low",
+      "validation_status": "heuristic",
+      "rule_id": "BS-M18",
+      "category": "manifest",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-926"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "<activity android:name=\"com.blindspot.testapp.MainActivity\">\n\n<receiver android:name=\"com.blindspot.testapp.SmsReceiver\">",
+      "description": "Decoded manifest XML text is unavailable, so the presence of android:exported attributes cannot be verified for 2 intent-filter component(s) on targetSdk=28.",
+      "impact": "",
+      "remediation": "Add an explicit android:exported=\"true\" or \"false\" to every component (required for targetSdk 31+ anyway). Set it to false unless external access is genuinely required, and guard exported components with a permission.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M18",
+          "title": "Implicitly exported component (missing android:exported)"
+        }
+      ],
+      "severity_rationale": "MEDIUM: if these components lack android:exported on targetSdk < 31 they are implicitly exported.",
+      "confidence_rationale": "LOW: without the manifest XML text the android:exported attribute cannot actually be inspected.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0058",
+      "title": "Deep link declared without android:autoVerify",
+      "severity": "medium",
+      "confidence": "low",
+      "validation_status": "heuristic",
+      "rule_id": "BS-P01",
+      "category": "platform",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-940"
+      ],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "Deep-link activities found, but the raw manifest text is not available so the autoVerify attribute could not be verified.",
+      "impact": "",
+      "remediation": "Add android:autoVerify=\"true\" to the <intent-filter> and publish a valid assetlinks.json at https://<host>/.well-known/assetlinks.json containing the app's signing-certificate SHA-256 fingerprint.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-P01",
+          "title": "Deep link declared without android:autoVerify"
+        }
+      ],
+      "severity_rationale": "Medium: same impact as a missing autoVerify if it is absent.",
+      "confidence_rationale": "Low: apktool manifest decoding failed or was unavailable, so the attribute state is unknown.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0060",
+      "title": "Exported debug/test/staging activity",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-P17",
+      "category": "platform",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "2 exported activit(ies) look like debug/test screens.",
+      "impact": "",
+      "remediation": "Remove debug/test activities from release builds (build-type source sets) or set android:exported=\"false\" and gate them behind a signature-level permission and debug-only build flags.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-P17",
+          "title": "Exported debug/test/staging activity"
+        }
+      ],
+      "severity_rationale": "Medium: test screens frequently expose internal functionality or data; any app can launch an exported activity.",
+      "confidence_rationale": "Medium: export status is certain; the debug/test nature is inferred from the class name and needs confirmation.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0037",
+      "title": "Plaintext secrets in resource XML",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-S11",
+      "category": "storage",
+      "owasp": [
+        "M1"
+      ],
+      "cwe": [
+        "CWE-798"
+      ],
+      "file_path": "extracted/res/values/strings.xml",
+      "line_start": 4,
+      "line_end": 4,
+      "snippet": "        2 | <resources>\n        3 |     <string name=\"app_name\">Blindspot Test App</string>\n>>>     4 |     <string name=\"api_key\">AIzaSyD-testkey-1234567890abcdef</string>\n        5 |     <string name=\"welcome\">Welcome to the synthetic fixture app</string>\n        6 | </resources>",
+      "description": "Found 1 resource string(s) holding secret-looking values.",
+      "impact": "",
+      "remediation": "Do not ship secrets in resources. Fetch keys/tokens from your backend at runtime after authentication, and rotate any secret found in res/.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S11",
+          "title": "Plaintext secrets in resource XML"
+        }
+      ],
+      "severity_rationale": "Resource values ship in plaintext inside the APK and are trivially extractable.",
+      "confidence_rationale": "The resource name indicates a secret and the value passes a secret heuristic on a real XML line.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0038",
+      "title": "Sensitive data copied to the clipboard",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-S12",
+      "category": "storage",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-200"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 44,
+      "line_end": 44,
+      "snippet": "       42 |         ClipboardManager cm =\n       43 |                 (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);\n>>>    44 |         cm.setPrimaryClip(ClipData.newPlainText(\"token\",\n       45 |                 prefs.getString(\"session_token\", \"\")));\n       46 |     }",
+      "description": "Found 1 clipboard write(s) adjacent to sensitive keywords.",
+      "impact": "",
+      "remediation": "Avoid placing secrets on the clipboard. If copy is unavoidable, clear the clipboard after a short timeout and warn the user; prefer autofill APIs for credentials.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S12",
+          "title": "Sensitive data copied to the clipboard"
+        }
+      ],
+      "severity_rationale": "Clipboard contents are readable by other apps, exposing copied secrets.",
+      "confidence_rationale": "The clipboard call is real, but the nearby keyword is a heuristic link rather than proven data flow.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0039",
+      "title": "Sensitive data passed as Intent extras",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-S14",
+      "category": "storage",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-200"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 39,
+      "line_end": 39,
+      "snippet": "       37 | \n       38 |         Intent next = new Intent(ctx, PasswordEchoActivity.class);\n>>>    39 |         next.putExtra(\"password\", password);\n       40 |         ctx.startActivity(next);\n       41 | \n\n       13 |         Intent i = new Intent(\"com.blindspot.testapp.LOGIN_EVENT\");\n       14 |         i.putExtra(\"email\", email);\n>>>    15 |         i.putExtra(\"session_token\", sessionToken);\n       16 |         ctx.sendStickyBroadcast(i);\n       17 |     }",
+      "description": "Found 2 putExtra call(s) with sensitive keys.",
+      "impact": "",
+      "remediation": "Do not pass secrets in Intent extras. Pass an opaque reference or session id and resolve the secret from secure storage in the receiving component.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S14",
+          "title": "Sensitive data passed as Intent extras"
+        }
+      ],
+      "severity_rationale": "Secrets in Intent extras can be intercepted or logged outside the app's control.",
+      "confidence_rationale": "The extra key literally names a secret on a real source line.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0040",
+      "title": "Sensitive data in URL query parameters",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-S16",
+      "category": "storage",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-598"
+      ],
+      "file_path": "tests/fixtures/vuln_app/TokenInUrl.java",
+      "line_start": 14,
+      "line_end": 14,
+      "snippet": "       12 |     public int sync(String apiKey) throws Exception {\n       13 |         URL url = new URL(\n>>>    14 |                 \"https://api.testapp.blindspot.example/sync?api_key=\" + apiKey);\n       15 |         HttpURLConnection conn = (HttpURLConnection) url.openConnection();\n       16 |         conn.setConnectTimeout(5000);",
+      "description": "Found 1 URL(s) with sensitive query parameters.",
+      "impact": "",
+      "remediation": "Send secrets in the request body or an Authorization header over TLS, never in the URL query string.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-S16",
+          "title": "Sensitive data in URL query parameters"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-N13",
+          "title": "Sensitive data in network URL query parameters"
+        }
+      ],
+      "severity_rationale": "Query-string secrets end up in server/proxy logs and caches.",
+      "confidence_rationale": "The URL and the sensitive parameter name were matched literally on a real line.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0052",
+      "title": "Path traversal via File built from intent/user input",
+      "severity": "medium",
+      "confidence": "low",
+      "validation_status": "heuristic",
+      "rule_id": "BS-W10",
+      "category": "webview",
+      "owasp": [
+        "M4"
+      ],
+      "cwe": [
+        "CWE-22"
+      ],
+      "file_path": "tests/fixtures/vuln_app/PathTraversal.java",
+      "line_start": 17,
+      "line_end": 17,
+      "snippet": "       15 |         super.onCreate(savedInstanceState);\n       16 |         String name = getIntent().getStringExtra(\"filename\");\n>>>    17 |         File target = new File(getFilesDir(), name);\n       18 |         setTitle(target.getAbsolutePath());\n       19 |     }\n\n       22 |             Object plugin = clazz.newInstance();\n       23 | \n>>>    24 |             File dex = new File(Environment.getExternalStorageDirectory(),\n       25 |                     \"plugins/plugin.apk\");\n       26 |             DexClassLoader loader = new DexClassLoader(",
+      "description": "2 File construction(s) use variable path components in files that read intent extras or URI data.",
+      "impact": "",
+      "remediation": "Canonicalize paths with getCanonicalPath(), verify the result stays inside the intended directory, and prefer fixed allow-listed file names over raw input.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-W10",
+          "title": "Path traversal via File built from intent/user input"
+        }
+      ],
+      "severity_rationale": "MEDIUM: path traversal can escape the intended directory and reach sensitive files; impact depends on the operation and the app's file permissions.",
+      "confidence_rationale": "LOW: only a variable path component and the presence of intent-input reads in the same file were observed. It is not proven that the intent data actually reaches the File constructor, nor that canonicalization is absent; exploitability not confirmed.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0053",
+      "title": "Unsafe Java deserialization",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-W11",
+      "category": "webview",
+      "owasp": [
+        "M4"
+      ],
+      "cwe": [
+        "CWE-502"
+      ],
+      "file_path": "tests/fixtures/vuln_app/Deserialization.java",
+      "line_start": 8,
+      "line_end": 8,
+      "snippet": "        6 | /**\n        7 |  * Intentionally insecure: Java native deserialization of untrusted bytes\n>>>     8 |  * via ObjectInputStream.readObject().\n        9 |  */\n       10 | public class Deserialization {\n\n       13 |         ObjectInputStream ois =\n       14 |                 new ObjectInputStream(new ByteArrayInputStream(data));\n>>>    15 |         return ois.readObject();\n       16 |     }\n       17 | }",
+      "description": "Unsafe deserialization API used (2 call site(s)).",
+      "impact": "",
+      "remediation": "Avoid serializing sensitive objects. Prefer JSON with a strict schema, validate and integrity-check any data before deserialization, and never deserialize data from untrusted sources.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-W11",
+          "title": "Unsafe Java deserialization"
+        }
+      ],
+      "severity_rationale": "MEDIUM: deserializing untrusted data can lead to code execution; impact depends on the data source and available gadget classes.",
+      "confidence_rationale": "MEDIUM: the deserialization API is really used, but it is not proven that the deserialized bytes come from an untrusted source; exploitability not confirmed.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0054",
+      "title": "Dynamic code loading with non-constant dex path",
+      "severity": "medium",
+      "confidence": "low",
+      "validation_status": "heuristic",
+      "rule_id": "BS-W12",
+      "category": "webview",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-494"
+      ],
+      "file_path": "tests/fixtures/vuln_app/UnsafeReflection.java",
+      "line_start": 26,
+      "line_end": 26,
+      "snippet": "       24 |             File dex = new File(Environment.getExternalStorageDirectory(),\n       25 |                     \"plugins/plugin.apk\");\n>>>    26 |             DexClassLoader loader = new DexClassLoader(\n       27 |                     dex.getAbsolutePath(),\n       28 |                     getCacheDir().getAbsolutePath(),",
+      "description": "Dynamic code loading with a variable path (1 call site(s)).",
+      "impact": "",
+      "remediation": "Load code only from the app's private, read-only directories. Never load dex from external storage, downloads or network URLs, and verify integrity (signature/hash) before loading.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-W12",
+          "title": "Dynamic code loading with non-constant dex path"
+        }
+      ],
+      "severity_rationale": "MEDIUM: loading code from a variable path is risky if the location is attacker-influenced.",
+      "confidence_rationale": "LOW: the path is a variable, but its origin and whether it is attacker-writable are not established; exploitability not confirmed.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0002",
+      "title": "blindspot cleartext url",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-cleartext-url",
+      "category": "",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-319"
+      ],
+      "file_path": "tests/fixtures/vuln_app/DebugEndpoints.java",
+      "line_start": 17,
+      "line_end": 17,
+      "snippet": "                ? \"http://staging.testapp.blindspot.example\"",
+      "description": "Hardcoded cleartext http:// URL.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-cleartext-url",
+          "title": "blindspot cleartext url"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0011",
+      "title": "blindspot cleartext url",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-cleartext-url",
+      "category": "",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-319"
+      ],
+      "file_path": "tests/fixtures/vuln_app/TrustAllCerts.java",
+      "line_start": 42,
+      "line_end": 42,
+      "snippet": "        URL url = new URL(\"http://api.testapp.blindspot.example/sync\");",
+      "description": "Hardcoded cleartext http:// URL.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-cleartext-url",
+          "title": "blindspot cleartext url"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-N02",
+          "title": "Hardcoded plaintext http:// URLs in code"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0021",
+      "title": "blindspot cleartext url",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-cleartext-url",
+      "category": "",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [
+        "CWE-319"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 34,
+      "line_end": 34,
+      "snippet": "        wv.loadUrl(\"http://testapp.blindspot.example/landing\");",
+      "description": "Hardcoded cleartext http:// URL.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-cleartext-url",
+          "title": "blindspot cleartext url"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-W04",
+          "title": "WebView loads cleartext HTTP or dynamically built URLs"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0007",
+      "title": "blindspot external storage",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-external-stora",
+      "category": "",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-312"
+      ],
+      "file_path": "tests/fixtures/vuln_app/InsecureStorage.java",
+      "line_start": 31,
+      "line_end": 31,
+      "snippet": "        File out = new File(Environment.getExternalStorageDirectory(),",
+      "description": "External storage is world-readable; do not store sensitive data there.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-external-storage",
+          "title": "blindspot external storage"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-S05",
+          "title": "Sensitive data written to external storage"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0008",
+      "title": "blindspot external storage",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-external-stora",
+      "category": "",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-312"
+      ],
+      "file_path": "tests/fixtures/vuln_app/NativeLoad.java",
+      "line_start": 13,
+      "line_end": 13,
+      "snippet": "        File lib = new File(Environment.getExternalStorageDirectory(),",
+      "description": "External storage is world-readable; do not store sensitive data there.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-external-storage",
+          "title": "blindspot external storage"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0012",
+      "title": "blindspot external storage",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-external-stora",
+      "category": "",
+      "owasp": [
+        "M9"
+      ],
+      "cwe": [
+        "CWE-312"
+      ],
+      "file_path": "tests/fixtures/vuln_app/UnsafeReflection.java",
+      "line_start": 24,
+      "line_end": 24,
+      "snippet": "            File dex = new File(Environment.getExternalStorageDirectory(),",
+      "description": "External storage is world-readable; do not store sensitive data there.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-external-storage",
+          "title": "blindspot external storage"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0016",
+      "title": "blindspot insecure random",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-insecure-rando",
+      "category": "",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-338"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 51,
+      "line_end": 51,
+      "snippet": "        Random rng = new Random();",
+      "description": "java.util.Random is predictable; use java.security.SecureRandom for security values.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-insecure-random",
+          "title": "blindspot insecure random"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-C07",
+          "title": "Predictable random values via java.util.Random"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0019",
+      "title": "blindspot js interface",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-js-interface",
+      "category": "",
+      "owasp": [
+        "M8"
+      ],
+      "cwe": [
+        "CWE-749"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WebViewBugs.java",
+      "line_start": 26,
+      "line_end": 26,
+      "snippet": "        wv.addJavascriptInterface(new JsBridge(), \"AndroidBridge\");",
+      "description": "JavaScript bridge exposed to WebView; audit bridged methods for sensitive operations.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-js-interface",
+          "title": "blindspot js interface"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-W02",
+          "title": "addJavascriptInterface exposes a native object to web content"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0013",
+      "title": "blindspot md5",
+      "severity": "medium",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-md5",
+      "category": "",
+      "owasp": [
+        "M10"
+      ],
+      "cwe": [
+        "CWE-327"
+      ],
+      "file_path": "tests/fixtures/vuln_app/WeakCrypto.java",
+      "line_start": 19,
+      "line_end": 19,
+      "snippet": "        MessageDigest md = MessageDigest.getInstance(\"MD5\");",
+      "description": "MD5 is broken for security purposes; use SHA-256+ or a password hashing function.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-md5",
+          "title": "blindspot md5"
+        },
+        {
+          "engine": "custom",
+          "rule_id": "BS-C01",
+          "title": "MD5 used in a security-sensitive context"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0003",
+      "title": "blindspot unsafe deserialization",
+      "severity": "medium",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "semgrep:blindspot-unsafe-deseria",
+      "category": "",
+      "owasp": [
+        "M4"
+      ],
+      "cwe": [
+        "CWE-502"
+      ],
+      "file_path": "tests/fixtures/vuln_app/Deserialization.java",
+      "line_start": 15,
+      "line_end": 15,
+      "snippet": "        return ois.readObject();",
+      "description": "Java deserialization of untrusted data can lead to remote code execution.",
+      "impact": "",
+      "remediation": "",
+      "engine": "semgrep",
+      "rule_version": "",
+      "provenance": [
+        {
+          "engine": "semgrep",
+          "rule_id": "semgrep:blindspot-unsafe-deserialization",
+          "title": "blindspot unsafe deserialization"
+        }
+      ],
+      "severity_rationale": "",
+      "confidence_rationale": "",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0033",
+      "title": "No network security configuration referenced",
+      "severity": "informational",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-M15",
+      "category": "manifest",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [],
+      "file_path": "AndroidManifest.xml",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "android:networkSecurityConfig not declared",
+      "description": "No android:networkSecurityConfig is referenced in the manifest. Informational: no pinning, per-domain TLS policy, or cleartext exceptions are declared.",
+      "impact": "",
+      "remediation": "No action required by this finding alone. Consider adding a network security config to declare certificate pinning, restrict cleartext traffic per-domain, and distrust user CAs in release builds.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-M15",
+          "title": "No network security configuration referenced"
+        }
+      ],
+      "severity_rationale": "INFORMATIONAL: the absence of a network security config is inventory metadata, not a vulnerability; it only means no declarative network controls exist.",
+      "confidence_rationale": "HIGH: the attribute is either present on the application tag or it is not; absence is directly observed.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0043",
+      "title": "Certificate pinning presence check",
+      "severity": "informational",
+      "confidence": "medium",
+      "validation_status": "static",
+      "rule_id": "BS-N08",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [],
+      "file_path": "",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "No certificate pinning detected; assess threat model. Absence alone is not a vulnerability.",
+      "impact": "",
+      "remediation": "If your threat model includes hostile networks, add certificate pinning (e.g. OkHttp CertificatePinner or <pin-set> in the network security config) with a backup pin and a rotation plan.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N08",
+          "title": "Certificate pinning presence check"
+        }
+      ],
+      "severity_rationale": "Informational: pinning is a defense-in-depth choice, not a vulnerability by itself.",
+      "confidence_rationale": "Heuristic keyword search; custom or native pinning may be missed, hence medium confidence.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0045",
+      "title": "Backend endpoint inventory (https hosts)",
+      "severity": "informational",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-N18",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [],
+      "file_path": "tests/fixtures/vuln_app/NetworkSafe.java",
+      "line_start": 12,
+      "line_end": 12,
+      "snippet": "       10 | public class NetworkSafe {\n       11 | \n>>>    12 |     private static final String BASE = \"https://api.testapp.blindspot.example\";\n       13 | \n       14 |     public int ping() throws Exception {",
+      "description": "Backend inventory: 1 distinct https host(s): api.testapp.blindspot.example",
+      "impact": "",
+      "remediation": "Review the inventory: confirm each host is in scope, served over TLS 1.2+, and covered by the app's certificate validation.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N18",
+          "title": "Backend endpoint inventory (https hosts)"
+        }
+      ],
+      "severity_rationale": "Informational: inventory for scoping, not a vulnerability.",
+      "confidence_rationale": "Hosts taken literally from https:// strings in source.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0046",
+      "title": "INTERNET permission without a network security configuration",
+      "severity": "informational",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-N20",
+      "category": "network",
+      "owasp": [
+        "M5"
+      ],
+      "cwe": [],
+      "file_path": "",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "App uses INTERNET but declares no network security configuration.",
+      "impact": "",
+      "remediation": "Add an explicit network security configuration declaring cleartextTrafficPermitted=\"false\", appropriate trust anchors, and pinning where the threat model warrants it.",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-N20",
+          "title": "INTERNET permission without a network security configuration"
+        }
+      ],
+      "severity_rationale": "Informational: absence of a config is not itself a vulnerability; it limits declarative transport-policy review.",
+      "confidence_rationale": "Manifest declares INTERNET and has no android:networkSecurityConfig attribute.",
+      "review_status": "open",
+      "review_note": ""
+    },
+    {
+      "finding_id": "177cd39e-0059",
+      "title": "Native library inventory",
+      "severity": "informational",
+      "confidence": "high",
+      "validation_status": "static",
+      "rule_id": "BS-P09",
+      "category": "platform",
+      "owasp": [
+        "M7"
+      ],
+      "cwe": [],
+      "file_path": "lib/armeabi-v7a/libnative.so",
+      "line_start": null,
+      "line_end": null,
+      "snippet": "",
+      "description": "APK ships 1 native librar(ies): lib/armeabi-v7a/libnative.so",
+      "impact": "",
+      "remediation": "No action required from this inventory alone. Review the listed libraries for known-vulnerable versions and confirm they are built with modern hardening (PIE, RELRO, stack canaries).",
+      "engine": "custom",
+      "rule_version": "1.0.0",
+      "provenance": [
+        {
+          "engine": "custom",
+          "rule_id": "BS-P09",
+          "title": "Native library inventory"
+        }
+      ],
+      "severity_rationale": "Informational: inventory only, not a vulnerability.",
+      "confidence_rationale": "High: the list comes directly from the APK's lib/ entries.",
+      "review_status": "open",
+      "review_note": ""
+    }
+  ],
+  "stages": [
+    {
+      "name": "validate",
+      "status": "completed",
+      "duration_ms": 80.9,
+      "note": ""
+    },
+    {
+      "name": "extract",
+      "status": "completed",
+      "duration_ms": 85.6,
+      "note": "extracted 5 entries"
+    },
+    {
+      "name": "metadata",
+      "status": "completed",
+      "duration_ms": 156.4,
+      "note": ""
+    },
+    {
+      "name": "decompile",
+      "status": "completed",
+      "duration_ms": 76.0,
+      "note": "jadx not installed \u2014 Java/Kotlin decompilation skipped. Install from https://github.com/skylot/jadx to enable it.; apktool not installed \u2014 resource/smali decoding skipped. Install from https://apktool.org to enable it."
+    },
+    {
+      "name": "third_party",
+      "status": "completed",
+      "duration_ms": 2917.5,
+      "note": ""
+    },
+    {
+      "name": "custom_rules",
+      "status": "completed",
+      "duration_ms": 389.2,
+      "note": ""
+    },
+    {
+      "name": "ai_review",
+      "status": "skipped",
+      "duration_ms": 0.0,
+      "note": "disabled in scan configuration"
+    },
+    {
+      "name": "normalize",
+      "status": "completed",
+      "duration_ms": 77.3,
+      "note": ""
+    },
+    {
+      "name": "finalize",
+      "status": "completed",
+      "duration_ms": 146.1,
+      "note": ""
+    }
+  ],
+  "executions": {
+    "completed": 2,
+    "finding": 48,
+    "pass": 61,
+    "needs_review": 7,
+    "not_applicable": 4
+  },
+  "rules_total": 122,
+  "rule_versions": {
+    "BS-M01": "1.0.0",
+    "BS-M02": "1.0.0",
+    "BS-M03": "1.0.0",
+    "BS-M04": "1.0.0",
+    "BS-M05": "1.0.0",
+    "BS-M06": "1.0.0",
+    "BS-M07": "1.0.0",
+    "BS-M08": "1.0.0",
+    "BS-M09": "1.0.0",
+    "BS-M10": "1.0.0",
+    "BS-M11": "1.0.0",
+    "BS-M12": "1.0.0",
+    "BS-M13": "1.0.0",
+    "BS-M14": "1.0.0",
+    "BS-M15": "1.0.0",
+    "BS-M16": "1.0.0",
+    "BS-M17": "1.0.0",
+    "BS-M18": "1.0.0",
+    "BS-M19": "1.0.0",
+    "BS-M20": "1.0.0",
+    "BS-S01": "1.0.0",
+    "BS-S02": "1.0.0",
+    "BS-S03": "1.0.0",
+    "BS-S04": "1.0.0",
+    "BS-S05": "1.0.0",
+    "BS-S06": "1.0.0",
+    "BS-S07": "1.0.0",
+    "BS-S08": "1.0.0",
+    "BS-S09": "1.0.0",
+    "BS-S10": "1.0.0",
+    "BS-S11": "1.0.0",
+    "BS-S12": "1.0.0",
+    "BS-S13": "1.0.0",
+    "BS-S14": "1.0.0",
+    "BS-S15": "1.0.0",
+    "BS-S16": "1.0.0",
+    "BS-S17": "1.0.0",
+    "BS-S18": "1.0.0",
+    "BS-S19": "1.0.0",
+    "BS-S20": "1.0.0",
+    "BS-N01": "1.0.0",
+    "BS-N02": "1.0.0",
+    "BS-N03": "1.0.0",
+    "BS-N04": "1.0.0",
+    "BS-N05": "1.0.0",
+    "BS-N06": "1.0.0",
+    "BS-N07": "1.0.0",
+    "BS-N08": "1.0.0",
+    "BS-N09": "1.0.0",
+    "BS-N10": "1.0.0",
+    "BS-N11": "1.0.0",
+    "BS-N12": "1.0.0",
+    "BS-N13": "1.0.0",
+    "BS-N14": "1.0.0",
+    "BS-N15": "1.0.0",
+    "BS-N16": "1.0.0",
+    "BS-N17": "1.0.0",
+    "BS-N18": "1.0.0",
+    "BS-N19": "1.0.0",
+    "BS-N20": "1.0.0",
+    "BS-C01": "1.0.0",
+    "BS-C02": "1.0.0",
+    "BS-C03": "1.0.0",
+    "BS-C04": "1.0.0",
+    "BS-C05": "1.0.0",
+    "BS-C06": "1.0.0",
+    "BS-C07": "1.0.0",
+    "BS-C08": "1.0.0",
+    "BS-C09": "1.0.0",
+    "BS-C10": "1.0.0",
+    "BS-C11": "1.0.0",
+    "BS-C12": "1.0.0",
+    "BS-C13": "1.0.0",
+    "BS-C14": "1.0.0",
+    "BS-C15": "1.0.0",
+    "BS-W01": "1.0.0",
+    "BS-W02": "1.0.0",
+    "BS-W03": "1.0.0",
+    "BS-W04": "1.0.0",
+    "BS-W05": "1.0.0",
+    "BS-W06": "1.0.0",
+    "BS-W07": "1.0.0",
+    "BS-W08": "1.0.0",
+    "BS-W09": "1.0.0",
+    "BS-W10": "1.0.0",
+    "BS-W11": "1.0.0",
+    "BS-W12": "1.0.0",
+    "BS-W13": "1.0.0",
+    "BS-W14": "1.0.0",
+    "BS-W15": "1.0.0",
+    "BS-A01": "1.0.0",
+    "BS-A02": "1.0.0",
+    "BS-A03": "1.0.0",
+    "BS-A04": "1.0.0",
+    "BS-A05": "1.0.0",
+    "BS-A06": "1.0.0",
+    "BS-A07": "1.0.0",
+    "BS-A08": "1.0.0",
+    "BS-A09": "1.0.0",
+    "BS-A10": "1.0.0",
+    "BS-P01": "1.0.0",
+    "BS-P02": "1.0.0",
+    "BS-P03": "1.0.0",
+    "BS-P04": "1.0.0",
+    "BS-P05": "1.0.0",
+    "BS-P06": "1.0.0",
+    "BS-P07": "1.0.0",
+    "BS-P08": "1.0.0",
+    "BS-P09": "1.0.0",
+    "BS-P10": "1.0.0",
+    "BS-P11": "1.0.0",
+    "BS-P12": "1.0.0",
+    "BS-P13": "1.0.0",
+    "BS-P14": "1.0.0",
+    "BS-P15": "1.0.0",
+    "BS-P16": "1.0.0",
+    "BS-P17": "1.0.0",
+    "BS-P18": "1.0.0",
+    "BS-P19": "1.0.0",
+    "BS-P20": "1.0.0"
+  },
+  "limitations": [
+    "jadx not installed \u2014 Java/Kotlin decompilation skipped. Install from https://github.com/skylot/jadx to enable it.",
+    "apktool not installed \u2014 resource/smali decoding skipped. Install from https://apktool.org to enable it.",
+    "AI review disabled in scan configuration."
+  ],
+  "errors": [],
+  "ai": {
+    "status": "skipped",
+    "model": "",
+    "error": "AI review disabled in scan config"
+  },
+  "ai_rows": [],
+  "scan_error": "",
+  "generator": "blindspot",
+  "format_version": "1.0"
+}

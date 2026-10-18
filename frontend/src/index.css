@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  /* Apple-like system blue for actions, focus and selection */
+  --bs-blue: #0071e3;
+  --bs-blue-hover: #0077ed;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-[#f5f5f7] text-[#1d1d1f] dark:bg-black dark:text-[#f5f5f7] antialiased;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+  /* Calm, consistent motion everywhere */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+::selection {
+  background: rgba(0, 113, 227, 0.18);
+}
+
+/* Consistent, visible keyboard focus — never removed */
+:focus-visible {
+  outline: 2px solid var(--bs-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Slim, quiet scrollbars for code and panels */
+.slim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 128, 0.4) transparent;
+}
+.slim-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.slim-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slim-scroll::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 128, 0.4);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.slim-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 128, 0.6);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* Indeterminate progress bar */
+@keyframes indeterminate-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+.animate-indeterminate {
+  animation: indeterminate-slide 1.4s ease-in-out infinite;
+  width: 40%;
+}
+
+/* Calm breathing glow for the active pipeline stage (Apple-restraint:
+   one quiet animation, not a stack of them) */
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 113, 227, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(0, 113, 227, 0);
+  }
+}
+.animate-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+/* Soft shimmer sweep for determinate progress bars */
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+.animate-shimmer {
+  animation: shimmer-slide 2.2s ease-in-out infinite;
+}
+
+/* Behind-the-scenes feed entries arrive gently */
+@keyframes feed-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-feed-in {
+  animation: feed-in 0.35s ease-out both;
+}
+
+code,
+pre {
+  font-variant-ligatures: none;
+}
+
+/* Respect users who prefer reduced motion — accessibility is not optional */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

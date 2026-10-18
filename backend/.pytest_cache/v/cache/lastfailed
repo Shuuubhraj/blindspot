@@ -1,0 +1,5 @@
+{
+  "tests/unit/test_ai_selection.py::test_normalize_ai_finding_bans_em_dashes": true,
+  "tests/unit/test_ai_selection.py::test_normalize_ai_finding_composes_rich_description": true,
+  "tests/unit/test_ai_selection.py::test_normalize_ai_finding_omits_empty_sections": true
+}

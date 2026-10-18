@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: blindspot
+Version: 0.1.0
+Summary: Blindspot - local-first Android APK security assessment platform
+Requires-Python: >=3.12
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: pydantic>=2.7
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: python-multipart>=0.0.9
+Requires-Dist: jinja2>=3.1
+Requires-Dist: weasyprint>=62
+Requires-Dist: androguard>=4.1
+Requires-Dist: mobsfscan>=0.3
+Requires-Dist: typer>=0.12
+Requires-Dist: httpx>=0.27
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: semgrep
+Requires-Dist: semgrep>=1.90; extra == "semgrep"
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"

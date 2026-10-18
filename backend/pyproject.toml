@@ -1,0 +1,36 @@
+[project]
+name = "blindspot"
+version = "4.0.0"
+description = "Blindspot - local-first Android APK security assessment platform"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "sqlalchemy>=2.0",
+    "python-multipart>=0.0.9",
+    "jinja2>=3.1",
+    "reportlab>=4.0",
+    "androguard>=4.1",
+    "mobsfscan>=0.3",
+    "typer>=0.12",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+blindspot = "blindspot.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["blindspot*"]

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Blindspot runtime data (per-machine: DB, uploads, scan workspaces)
+backend/blindspot/data/
+backend/blindspot/workspaces/
+backend/blindspot/uploads/
+
+# Frontend
+frontend/node_modules/
+*.local
+
+# Tests / caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local upgrade notes (per-version, not part of the project)
+UPGRADE-TO-*.txt
+
+# Local build artifacts
+blindspot-*.zip

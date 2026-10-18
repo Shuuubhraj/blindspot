@@ -1,0 +1,2201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blindspot Assessment — test-app.apk</title>
+<style>
+  :root { --bg:#0f141b; --panel:#171e27; --ink:#e8edf3; --mut:#9aa7b5;
+          --crit:#e5484d; --high:#f76b15; --med:#f5a524; --low:#3e9bff; --info:#8b949e;
+          --line:#26303c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.55; }
+  .wrap { max-width:1080px; margin:0 auto; padding:32px 24px 64px; }
+  header.cover { border:1px solid var(--line); border-radius:12px; padding:36px;
+                 background:linear-gradient(135deg,#16202c,#10161d); margin-bottom:28px; }
+  header.cover h1 { margin:0 0 4px; font-size:30px; letter-spacing:.5px; }
+  header.cover .tag { color:var(--mut); font-size:14px; }
+  .meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+               gap:12px; margin-top:20px; }
+  .meta-grid .cell { background:var(--panel); border:1px solid var(--line);
+                     border-radius:8px; padding:10px 14px; }
+  .meta-grid .k { font-size:11px; text-transform:uppercase; color:var(--mut);
+                  letter-spacing:.08em; }
+  .meta-grid .v { font-size:14px; word-break:break-all; }
+  h2 { font-size:20px; margin:36px 0 12px; padding-bottom:8px;
+       border-bottom:1px solid var(--line); }
+  h3 { font-size:16px; margin:22px 0 8px; }
+  p, li { font-size:14px; }
+  .mut { color:var(--mut); }
+  .sev-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .sev-card { border:1px solid var(--line); border-radius:10px; padding:14px;
+              background:var(--panel); }
+  .sev-card .n { font-size:30px; font-weight:700; }
+  .sev-card .l { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); }
+  .bar { height:8px; border-radius:4px; background:#232d38; margin-top:8px; overflow:hidden; }
+  .bar > div { height:100%; border-radius:4px; }
+  .crit{color:var(--crit)} .high{color:var(--high)} .med{color:var(--med)}
+  .low{color:var(--low)} .info{color:var(--info)}
+  .bg-crit{background:var(--crit)} .bg-high{background:var(--high)} .bg-med{background:var(--med)}
+  .bg-low{background:var(--low)} .bg-info{background:var(--info)}
+  table { width:100%; border-collapse:collapse; font-size:13px; margin:12px 0; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
+  .finding { border:1px solid var(--line); border-radius:10px; background:var(--panel);
+             margin:16px 0; overflow:hidden; }
+  .finding-head { padding:14px 18px; border-bottom:1px solid var(--line); }
+  .finding-head h3 { margin:0 0 6px; font-size:16px; }
+  .finding-body { padding:6px 18px 16px; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; padding:2px 10px;
+          border-radius:999px; margin-right:6px; text-transform:uppercase; letter-spacing:.05em;}
+  .p-crit{background:#3a1416;color:#ff8a8e} .p-high{background:#3a1f10;color:#ffb37a}
+  .p-med{background:#3a2c0e;color:#ffd37a} .p-low{background:#10283f;color:#7cc0ff}
+  .p-info{background:#232d38;color:#aeb9c4}
+  pre.code { background:#0b0f14; border:1px solid var(--line); border-radius:8px;
+             padding:12px 14px; overflow-x:auto; font-size:12.5px; line-height:1.5;
+             font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre-wrap;
+             word-break:break-word; }
+  .kv { display:grid; grid-template-columns:180px 1fr; gap:6px 12px; font-size:13px; margin:10px 0; }
+  .kv .k { color:var(--mut); }
+  .toc a { color:#7cc0ff; text-decoration:none; font-size:14px; }
+  .toc li { margin:4px 0; }
+  .warn { background:#2a1f08; border:1px solid #5a4413; border-radius:8px;
+          padding:12px 16px; font-size:13px; margin:12px 0; }
+  footer { margin-top:48px; color:var(--mut); font-size:12px; border-top:1px solid var(--line); padding-top:16px; }
+  @media print {
+    body { background:#fff; color:#111; }
+    header.cover, .sev-card, .finding { background:#fff; border-color:#ccc; }
+    pre.code { background:#f6f6f6; border-color:#ccc; }
+    .finding { break-inside:avoid; }
+    h2 { break-after:avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="cover">
+  <h1>Blindspot Security Assessment</h1>
+  <div class="tag">Find what others miss. &mdash; Static APK security assessment report</div>
+  <div class="meta-grid">
+    <div class="cell"><div class="k">File</div><div class="v">test-app.apk</div></div>
+    <div class="cell"><div class="k">Package</div><div class="v">com.blindspot.testapp</div></div>
+    <div class="cell"><div class="k">Version</div><div class="v">1.0 (1)</div></div>
+    <div class="cell"><div class="k">SHA-256</div><div class="v" style="font-family:monospace;font-size:11px">d9a3eb9bb6057c7124ae8959705dde86e681260e783853830492bbbd921bc722</div></div>
+    <div class="cell"><div class="k">Assessed</div><div class="v">2026-10-17T19:16:07.208583</div></div>
+    <div class="cell"><div class="k">Status</div><div class="v">completed</div></div>
+  </div>
+</header>
+
+<h2>Executive summary</h2>
+<p>
+  Blindspot performed an automated <strong>static</strong> security assessment of
+  <strong>test-app.apk</strong>
+  (<strong>com.blindspot.testapp</strong>).
+  The scan produced <strong>60</strong> finding(s):
+  <span class="crit">2 critical</span>,
+  <span class="high">25 high</span>,
+  <span class="med">28 medium</span>,
+  <span class="low">0 low</span>,
+  <span class="info">5 informational</span>.
+  
+  Critical and high findings should be triaged first; each includes evidence,
+  impact, and remediation guidance below.
+  
+</p>
+
+<div class="warn"><strong>Coverage notice:</strong> 3 limitation(s) apply to this
+assessment — see <a href="#limitations" style="color:#ffd37a">Limitations and exclusions</a>.</div>
+
+
+<h2>Contents</h2>
+<ul class="toc">
+  <li><a href="#scope">Scope and methodology</a></li>
+  <li><a href="#metadata">APK metadata</a></li>
+  <li><a href="#coverage">Scan coverage</a></li>
+  <li><a href="#severity">Severity distribution</a></li>
+  <li><a href="#owasp">OWASP Mobile Top 10 (2024) mapping</a></li>
+  <li><a href="#findings">Detailed findings</a></li>
+  <li><a href="#limitations">Limitations and exclusions</a></li>
+</ul>
+
+<h2 id="scope">Scope and methodology</h2>
+<p>This assessment is <strong>static analysis only</strong>: the APK was unpacked and inspected without
+executing it. No dynamic testing, network interaction, or backend testing was performed.</p>
+<ul>
+  <li>APK structure validation, SHA-256 hashing, safe extraction</li>
+  <li>AndroidManifest.xml decoding and configuration analysis</li>
+  <li>Permission, component-export and intent-filter analysis</li>
+  <li>Decompiled-source review (where a decompiler was available)</li>
+  <li>Third-party scanners: mobsfscan and semgrep (when available)</li>
+  <li>122 custom Blindspot detection-rule executions across 7 categories</li>
+  <li>Optional local-AI review (Ollama, on-device only — never a cloud service)</li>
+</ul>
+<p class="mut">Severity reflects potential impact if the issue is real and exploitable.
+Confidence reflects how strongly the evidence supports the finding. The two are independent.</p>
+
+<h2 id="metadata">APK metadata</h2>
+<div class="kv">
+  <div class="k">File name</div><div>test-app.apk</div>
+  <div class="k">SHA-256</div><div style="font-family:monospace;font-size:12px">d9a3eb9bb6057c7124ae8959705dde86e681260e783853830492bbbd921bc722</div>
+  <div class="k">File size</div><div>2234 bytes</div>
+  <div class="k">Package</div><div>com.blindspot.testapp</div>
+  <div class="k">App name</div><div>@string/app_name</div>
+  <div class="k">Version</div><div>1.0 (1)</div>
+</div>
+
+<h2 id="coverage">Scan coverage</h2>
+<table>
+  <tr><th>Stage</th><th>Status</th><th>Duration</th><th>Note</th></tr>
+  
+  <tr><td><code>validate</code></td><td>completed</td>
+      <td>80.9 ms</td><td class="mut">—</td></tr>
+  
+  <tr><td><code>extract</code></td><td>completed</td>
+      <td>85.6 ms</td><td class="mut">extracted 5 entries</td></tr>
+  
+  <tr><td><code>metadata</code></td><td>completed</td>
+      <td>156.4 ms</td><td class="mut">—</td></tr>
+  
+  <tr><td><code>decompile</code></td><td>completed</td>
+      <td>76.0 ms</td><td class="mut">jadx not installed — Java/Kotlin decompilation skipped. Install from https://github.com/skylot/jadx to enable it.; apktool not installed — resource/smali decoding skipped. Install from https://apktool.org to enable it.</td></tr>
+  
+  <tr><td><code>third_party</code></td><td>completed</td>
+      <td>2917.5 ms</td><td class="mut">—</td></tr>
+  
+  <tr><td><code>custom_rules</code></td><td>completed</td>
+      <td>389.2 ms</td><td class="mut">—</td></tr>
+  
+  <tr><td><code>ai_review</code></td><td>skipped</td>
+      <td>0.0 ms</td><td class="mut">disabled in scan configuration</td></tr>
+  
+  <tr><td><code>normalize</code></td><td>completed</td>
+      <td>77.3 ms</td><td class="mut">—</td></tr>
+  
+  <tr><td><code>finalize</code></td><td>completed</td>
+      <td>146.1 ms</td><td class="mut">—</td></tr>
+  
+</table>
+<p>Rule executions by outcome:
+<code>completed</code>: 2 <code>finding</code>: 48 <code>pass</code>: 61 <code>needs_review</code>: 7 <code>not_applicable</code>: 4 </p>
+
+<h2 id="severity">Severity distribution</h2>
+<div class="sev-cards">
+  
+  <div class="sev-card"><div class="n crit">2</div><div class="l">Critical</div>
+    <div class="bar"><div class="bg-crit" style="width:3.3%"></div></div>
+  </div>
+  
+  <div class="sev-card"><div class="n high">25</div><div class="l">High</div>
+    <div class="bar"><div class="bg-high" style="width:41.7%"></div></div>
+  </div>
+  
+  <div class="sev-card"><div class="n med">28</div><div class="l">Medium</div>
+    <div class="bar"><div class="bg-med" style="width:46.7%"></div></div>
+  </div>
+  
+  <div class="sev-card"><div class="n low">0</div><div class="l">Low</div>
+    <div class="bar"><div class="bg-low" style="width:0.0%"></div></div>
+  </div>
+  
+  <div class="sev-card"><div class="n info">5</div><div class="l">Informational</div>
+    <div class="bar"><div class="bg-info" style="width:8.3%"></div></div>
+  </div>
+  
+</div>
+
+<h2 id="owasp">OWASP Mobile Top 10 (2024) mapping</h2>
+<table>
+  <tr><th>Category</th><th>Name</th><th>Findings</th></tr>
+  
+  <tr><td><code>M1</code></td><td>Improper Credential Usage</td><td>6</td></tr>
+  
+  <tr><td><code>M2</code></td><td>Inadequate Supply Chain Security</td><td>0</td></tr>
+  
+  <tr><td><code>M3</code></td><td>Insecure Authentication/Authorization</td><td>3</td></tr>
+  
+  <tr><td><code>M4</code></td><td>Insufficient Input/Output Validation</td><td>5</td></tr>
+  
+  <tr><td><code>M5</code></td><td>Insecure Communication</td><td>13</td></tr>
+  
+  <tr><td><code>M6</code></td><td>Inadequate Privacy Controls</td><td>2</td></tr>
+  
+  <tr><td><code>M7</code></td><td>Insufficient Binary Protections</td><td>1</td></tr>
+  
+  <tr><td><code>M8</code></td><td>Security Misconfiguration</td><td>15</td></tr>
+  
+  <tr><td><code>M9</code></td><td>Insecure Data Storage</td><td>8</td></tr>
+  
+  <tr><td><code>M10</code></td><td>Insufficient Cryptography</td><td>8</td></tr>
+  
+</table>
+<p class="mut">OWASP categories are classification metadata, not severity scores.</p>
+
+<h2 id="findings">Detailed findings</h2>
+
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>1. Hardcoded authentication bypass / backdoor credential</h3>
+    <span class="pill p-crit">critical</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0055 · rule <code>BS-A02</code> v1.0.0 · engine: custom
+      · auth
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/AuthBypass.java</code> : lines 17</div>
+      <div class="k">OWASP</div><div>M3</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>1 hardcoded credential comparison(s) or debug-gated auth bypass marker(s) found. Anyone who decompiles the APK can read these credentials and authenticate without authorization.</p>
+    <h3>Evidence</h3><pre class="code">       15 | 
+       16 |     public boolean login(Context ctx, String email, String password) {
+&gt;&gt;&gt;    17 |         if (email.equals(&#34;admin&#34;) &amp;&amp; password.equals(&#34;admin&#34;)) {
+       18 |             return true;
+       19 |         }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Hardcoded credentials are directly extractable from the APK and grant authentication as another user: full account compromise with trivial effort (Critical).</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The literal credential comparison is present verbatim in the decompiled source at the cited line; no inference required.</p>
+    
+    <h3>Remediation</h3><p>Remove all hardcoded credentials and debug bypasses from the client. Authentication must always be verified server-side against credentials the client never stores. Gate any test login helpers behind build flavors that never ship to production, and add CI checks that fail the release build if bypass markers are present.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>2. Hardcoded encryption key</h3>
+    <span class="pill p-crit">critical</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0047 · rule <code>BS-C05</code> v1.0.0 · engine: custom
+      · crypto
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 29</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded encryption key material in 1 location(s).</p>
+    <h3>Evidence</h3><pre class="code">       27 | 
+       28 |     public byte[] encryptDes(byte[] data) throws Exception {
+&gt;&gt;&gt;    29 |         SecretKeySpec key = new SecretKeySpec(&#34;12345678&#34;.getBytes(), &#34;DES&#34;);
+       30 |         Cipher c = Cipher.getInstance(&#34;DES&#34;);
+       31 |         c.init(Cipher.ENCRYPT_MODE, key);</pre>
+    <p class="mut"><strong>Severity rationale:</strong> A hardcoded key is recoverable by decompiling the APK, so every ciphertext produced with it is effectively plaintext to an attacker: total loss of confidentiality.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The SecretKeySpec constructor receives a string literal, a literal byte array, or a variable provably assigned a literal in the preceding lines.</p>
+    
+    <h3>Remediation</h3><p>Do not embed keys. Generate keys at runtime with KeyGenerator and a SecureRandom, or store them in the Android Keystore (AndroidKeyStore) so key material never enters app memory as a literal. For data that must be decryptable off-device, fetch keys from a server over TLS after authentication.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>3. Hardcoded test accounts in authentication code</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0056 · rule <code>BS-A03</code> v1.0.0 · engine: custom
+      · auth
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/AuthBypass.java</code> : lines 13</div>
+      <div class="k">OWASP</div><div>M1, M3</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>2 hardcoded test-account literal(s) found in authentication code. Test accounts shipped in production builds act as standing backdoors.</p>
+    <h3>Evidence</h3><pre class="code">       11 | public class AuthBypass {
+       12 | 
+&gt;&gt;&gt;    13 |     private static final String TEST_ACCOUNT = &#34;test@test.com&#34;;
+       14 |     private static final String TEST_PASSWORD = &#34;test123&#34;;
+       15 | 
+
+       12 | 
+       13 |     private static final String TEST_ACCOUNT = &#34;test@test.com&#34;;
+&gt;&gt;&gt;    14 |     private static final String TEST_PASSWORD = &#34;test123&#34;;
+       15 | 
+       16 |     public boolean login(Context ctx, String email, String password) {</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Test credentials are extractable from the APK and frequently carry elevated or shared access; compromise is realistic (High).</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The test-account literal appears verbatim at the cited line inside authentication-related code.</p>
+    
+    <h3>Remediation</h3><p>Remove test accounts from production builds. Provision test users in a staging backend instead, and add a release-gate check that fails the build when known test-account literals appear in auth code.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>4. Password hashed without a salt</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0048 · rule <code>BS-C10</code> v1.0.0 · engine: custom
+      · crypto
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 20</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-916</div>
+    </div>
+    <h3>Description</h3><p>Password hashed without a salt in 1 location(s).</p>
+    <h3>Evidence</h3><pre class="code">       18 |     public String hashPassword(String password) throws Exception {
+       19 |         MessageDigest md = MessageDigest.getInstance(&#34;MD5&#34;);
+&gt;&gt;&gt;    20 |         byte[] digest = md.digest(password.getBytes(&#34;UTF-8&#34;));
+       21 |         StringBuilder sb = new StringBuilder();
+       22 |         for (byte b : digest) {</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Unsalted fast hashes let attackers use rainbow tables and GPU brute force to recover passwords, compromising user accounts.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> A digest() call on a password-like value with a weak MessageDigest and no salt keyword within 8 lines; the salt could theoretically be mixed in farther away.</p>
+    
+    <h3>Remediation</h3><p>Never store passwords as plain digests. Use Argon2id, bcrypt or scrypt with a unique random salt per password via a vetted library.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>5. Cryptographic key material stored in SharedPreferences</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0049 · rule <code>BS-C13</code> v1.0.0 · engine: custom
+      · crypto
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 26</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-312</div>
+    </div>
+    <h3>Description</h3><p>Possible key material in SharedPreferences in 3 location(s).</p>
+    <h3>Evidence</h3><pre class="code">       24 |         prefs.edit()
+       25 |                 .putString(&#34;username&#34;, username)
+&gt;&gt;&gt;    26 |                 .putString(&#34;password&#34;, password)
+       27 |                 .apply();
+       28 | 
+
+       23 |         SharedPreferences prefs =
+       24 |                 ctx.getSharedPreferences(&#34;session&#34;, Context.MODE_PRIVATE);
+&gt;&gt;&gt;    25 |         prefs.edit().putString(&#34;auth_token&#34;,
+       26 |                 &#34;hardcoded-bearer-token-abc123&#34;).apply();
+       27 |         return false;
+
+       22 |                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+       23 |                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM);
+&gt;&gt;&gt;    24 |         prefs.edit().putString(&#34;auth_token&#34;, token).apply();
+       25 |     }
+       26 | }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Key material in plaintext preferences XML is exposed on rooted devices and via backups, defeating the encryption it is meant to support.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The preference name matches key/secret/token/password-like patterns, but the stored value was not proven to be key material statically.</p>
+    
+    <h3>Remediation</h3><p>Store keys in the Android Keystore (AndroidKeyStore) or use EncryptedSharedPreferences from androidx.security for sensitive values; never persist raw key material in plaintext XML.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>6. Application is debuggable</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0022 · rule <code>BS-M01</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-489</div>
+    </div>
+    <h3>Description</h3><p>Application tag sets android:debuggable=&#34;true&#34;. The app can be attached by a debugger on any device with adb access.</p>
+    <h3>Evidence</h3><pre class="code">application tag parsed with debuggable=true</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: a debuggable release build exposes the running process to debugger attachment on user devices, enabling memory inspection, secret extraction, and bypass of local protections.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: the flag is a literal boolean on the application tag, parsed directly from the decoded manifest.</p>
+    
+    <h3>Remediation</h3><p>Remove android:debuggable=&#34;true&#34; from the release manifest (or set it to false). Keep debuggable builds internal only; verify the shipped APK with `aapt dump badging` / apkanalyzer and in CI.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>7. Cleartext HTTP traffic explicitly allowed</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0024 · rule <code>BS-M03</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-319</div>
+    </div>
+    <h3>Description</h3><p>android:usesCleartextTraffic=&#34;true&#34;: the app explicitly permits cleartext HTTP traffic, so sensitive data may traverse the network unencrypted.</p>
+    <h3>Evidence</h3><pre class="code">android:usesCleartextTraffic=&#34;true&#34;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: cleartext HTTP exposes credentials, tokens, and PII to any passive network observer; the opt-out is global to the app.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: the attribute value is read directly from the decoded manifest application tag.</p>
+    
+    <h3>Remediation</h3><p>Remove android:usesCleartextTraffic=&#34;true&#34; (or set it to false) and migrate endpoints to HTTPS. If a specific legacy host must stay on HTTP, scope the exception to that host in a network security config instead of allowing cleartext globally.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>8. Exported activity without permission guard</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0028 · rule <code>BS-M07</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-926</div>
+    </div>
+    <h3>Description</h3><p>2 exported activities with no android:permission: com.blindspot.testapp.MainActivity, com.blindspot.testapp.DebugActivity.</p>
+    <h3>Evidence</h3><pre class="code">android:exported=&#34;true&#34; on &lt;activity android:name=&#34;com.blindspot.testapp.MainActivity&#34;&gt; (no android:permission)
+
+android:exported=&#34;true&#34; on &lt;activity android:name=&#34;com.blindspot.testapp.DebugActivity&#34;&gt; (no android:permission)</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: an unguarded exported activity is directly launchable by any app on the device, enabling intent spoofing, flow bypass, and data extraction through extras.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: exported state and the absence of a permission attribute come straight from the parsed activity declarations.</p>
+    
+    <h3>Remediation</h3><p>Set android:exported=&#34;false&#34; for activities that need no external access. For activities that must be reachable, protect them with a signature-level android:permission and validate all incoming intent extras.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>9. Exported broadcast receiver without permission guard</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0029 · rule <code>BS-M09</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-927</div>
+    </div>
+    <h3>Description</h3><p>1 exported receiver(s) with no android:permission: com.blindspot.testapp.SmsReceiver.</p>
+    <h3>Evidence</h3><pre class="code">android:exported=&#34;true&#34; on &lt;receiver android:name=&#34;com.blindspot.testapp.SmsReceiver&#34;&gt; (no android:permission)</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: any app on the device can send crafted broadcasts to an unguarded exported receiver, driving app logic with attacker-controlled extras.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: exported state and the absence of a permission attribute come straight from the parsed receiver declarations.</p>
+    
+    <h3>Remediation</h3><p>Set android:exported=&#34;false&#34; for receivers handling internal or system broadcasts. For receivers that must accept external broadcasts, require a signature-level android:permission and validate all extras and sender identity.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>10. Exported content provider without read/write permission</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0030 · rule <code>BS-M10</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-926</div>
+    </div>
+    <h3>Description</h3><p>1 exported provider(s) with no readPermission/writePermission: com.blindspot.testapp.TestProvider.</p>
+    <h3>Evidence</h3><pre class="code">android:exported=&#34;true&#34; on &lt;provider android:name=&#34;com.blindspot.testapp.TestProvider&#34; android:authorities=&#34;com.blindspot.testapp.files&#34;&gt; (no readPermission/writePermission)</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: an unguarded exported provider exposes its backing data to arbitrary apps for read and write, enabling theft and tampering of app data.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: exported state, authorities, and the absence of read/write permission attributes come straight from the parsed provider declarations.</p>
+    
+    <h3>Remediation</h3><p>Set android:exported=&#34;false&#34; for providers that are app-internal. For providers that must be shared, set android:readPermission and android:writePermission (signature level where possible), use path-permissions for granularity, and validate all query parameters.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>11. usesCleartextTraffic enabled in application manifest</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0041 · rule <code>BS-N01</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>extracted/AndroidManifest.decoded.xml</code></div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-319</div>
+    </div>
+    <h3>Description</h3><p>Application permits cleartext (HTTP) traffic globally.</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> A global cleartext opt-in disables Android&#39;s default plaintext protection for every network request, enabling passive eavesdropping and active tampering.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Direct manifest attribute evidence; no inference required.</p>
+    
+    <h3>Remediation</h3><p>Remove android:usesCleartextTraffic=&#34;true&#34; from the manifest (the default is false) and serve all traffic over HTTPS. If specific legacy hosts still require HTTP, use a network security configuration with narrowly scoped domain-config exceptions instead of a global flag.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>12. Hostname verification disabled</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0042 · rule <code>BS-N04</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/TrustAllCerts.java</code> : lines 37</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-297</div>
+    </div>
+    <h3>Description</h3><p>1 hostname-verification bypass(es) found.</p>
+    <h3>Evidence</h3><pre class="code">       35 |         sc.init(null, TRUST_ALL, new java.security.SecureRandom());
+       36 |         HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+&gt;&gt;&gt;    37 |         HostnameVerifier allowAll = SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
+       38 |         HttpsURLConnection.setDefaultHostnameVerifier(allowAll);
+       39 |     }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> High: an attacker with any CA-issued certificate can impersonate any host the app connects to.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Literal ALLOW_ALL_HOSTNAME_VERIFIER tokens or source-verified verify() bodies that only return true.</p>
+    
+    <h3>Remediation</h3><p>Use the strict default hostname verifier (HttpsURLConnection.getDefaultHostnameVerifier()). If you must customize, compare against an allow-list of expected hostnames instead of returning true.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>13. Custom SSLSocketFactory that skips certificate verification</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0044 · rule <code>BS-N17</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/TrustAllCerts.java</code> : lines 34</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-295</div>
+    </div>
+    <h3>Description</h3><p>1 custom SSL socket factory / context bypass(es).</p>
+    <h3>Evidence</h3><pre class="code">       32 | 
+       33 |     public void install() throws Exception {
+&gt;&gt;&gt;    34 |         SSLContext sc = SSLContext.getInstance(&#34;TLS&#34;);
+       35 |         sc.init(null, TRUST_ALL, new java.security.SecureRandom());
+       36 |         HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());</pre>
+    <p class="mut"><strong>Severity rationale:</strong> High: bypassing certificate verification at the socket layer exposes all TLS traffic to interception.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Trust-all indicators co-located with SSLContext/socket-factory setup; manual review should confirm the factory is installed on real connections.</p>
+    
+    <h3>Remediation</h3><p>Remove the custom factory and use the platform default SSLContext. If customization is required, delegate verification to the default TrustManager or implement proper pinning.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>14. Hardcoded credentials in source code</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0035 · rule <code>BS-S01</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/HardcodedSecrets.java</code> : lines 13</div>
+      <div class="k">OWASP</div><div>M1</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>Found 2 hardcoded credential assignment(s) in decompiled sources.</p>
+    <h3>Evidence</h3><pre class="code">       11 | 
+       12 |     public String getClientSecret() {
+&gt;&gt;&gt;    13 |         String clientSecret = &#34;client_secret_9f8e7d6c5b4a&#34;;
+       14 |         return clientSecret;
+       15 |     }
+
+       12 | 
+       13 |     private static final String TEST_ACCOUNT = &#34;test@test.com&#34;;
+&gt;&gt;&gt;    14 |     private static final String TEST_PASSWORD = &#34;test123&#34;;
+       15 | 
+       16 |     public boolean login(Context ctx, String email, String password) {</pre>
+    <p class="mut"><strong>Severity rationale:</strong> A hardcoded password/secret ships with the APK and is recoverable by decompilation; if valid it may grant unauthorized access.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The variable name indicates a credential and the assigned value is a non-placeholder string literal on a real source line.</p>
+    
+    <h3>Remediation</h3><p>Remove the hardcoded credential. Load it from a server-side session at runtime, use Android Keystore-backed tokens, or gate the functionality behind user authentication. Never ship credentials inside the APK.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>15. Private key material embedded in the package</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0036 · rule <code>BS-S03</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>extracted/assets/private_key.pem</code> : lines 1</div>
+      <div class="k">OWASP</div><div>M1</div>
+      <div class="k">CWE</div><div>CWE-321</div>
+    </div>
+    <h3>Description</h3><p>Found 1 embedded private-key material occurrence(s).</p>
+    <h3>Evidence</h3><pre class="code">&gt;&gt;&gt;     1 | -----BEGIN RSA PRIVATE KEY-----
+        2 | FAKE TEST KEY — NOT REAL.
+        3 | Synthetic fixture for the Blindspot scanner test suite.</pre>
+    <p class="mut"><strong>Severity rationale:</strong> A private key inside the APK is extractable by anyone and defeats the purpose of asymmetric cryptography.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> PEM private-key headers were matched literally, or a file with a key-container extension was found in assets/res.</p>
+    
+    <h3>Remediation</h3><p>Remove private keys from the package. Use Android Keystore for device-generated keys and fetch any required key material from a server over an authenticated channel at runtime.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>16. WebView JavaScript enabled</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0051 · rule <code>BS-W01</code> v1.0.0 · engine: custom
+      · webview
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 23</div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-749</div>
+    </div>
+    <h3>Description</h3><p>JavaScript enabled in a WebView that also exposes an addJavascriptInterface bridge (1 call site(s)). Web content can invoke native Java methods.</p>
+    <h3>Evidence</h3><pre class="code">       21 |         WebView wv = new WebView(ctx);
+       22 |         WebSettings s = wv.getSettings();
+&gt;&gt;&gt;    23 |         s.setJavaScriptEnabled(true);
+       24 |         s.setAllowUniversalAccessFromFileURLs(true);
+       25 |         s.setAllowFileAccessFromFileURLs(true);</pre>
+    <p class="mut"><strong>Severity rationale:</strong> HIGH: JavaScript plus a JS bridge lets loaded web content call into native code; this is the classic WebView bridge-escape configuration. Escalated from MEDIUM because the bridge is present.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> MEDIUM: both calls were found in the same file, but it is not proven that the bridged methods are reachable from untrusted web content or that the WebView loads attacker-controlled pages.</p>
+    
+    <h3>Remediation</h3><p>Disable JavaScript unless the WebView genuinely needs it. If it is required, only load trusted HTTPS content, validate every URL in shouldOverrideUrlLoading, and never combine JavaScript with an addJavascriptInterface bridge that reaches native functionality.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>17. blindspot aes ecb</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0015 · rule <code>semgrep:blindspot-aes-ecb</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 37</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-327</div>
+    </div>
+    <h3>Description</h3><p>AES in ECB mode leaks plaintext patterns; use AES/GCM/NoPadding.</p>
+    <h3>Evidence</h3><pre class="code">        Cipher c = Cipher.getInstance(&#34;AES/ECB/PKCS5Padding&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>18. blindspot aws access key</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0004 · rule <code>semgrep:blindspot-aws-access-key</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/HardcodedSecrets.java</code> : lines 10</div>
+      <div class="k">OWASP</div><div>M1</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded AWS access key ID.</p>
+    <h3>Evidence</h3><pre class="code">    private static final String AWS_ACCESS_KEY = &#34;AKIAIOSFODNN7EXAMPLE&#34;;</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>19. blindspot empty trustmanager</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0010 · rule <code>semgrep:blindspot-empty-trustman</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/TrustAllCerts.java</code> : lines 24–25</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-295</div>
+    </div>
+    <h3>Description</h3><p>Empty checkServerTrusted() trusts any certificate (MITM).</p>
+    <h3>Evidence</h3><pre class="code">            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>20. blindspot exec concat</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0001 · rule <code>semgrep:blindspot-exec-concat</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/CommandInjection.java</code> : lines 13</div>
+      <div class="k">OWASP</div><div>M4</div>
+      <div class="k">CWE</div><div>CWE-78</div>
+    </div>
+    <h3>Description</h3><p>OS command built with string concatenation; possible command injection.</p>
+    <h3>Evidence</h3><pre class="code">        Process p = Runtime.getRuntime().exec(&#34;ping -c 1 &#34; + host);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>21. blindspot hardcoded password</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0006 · rule <code>semgrep:blindspot-hardcoded-pass</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 29–32</div>
+      <div class="k">OWASP</div><div>M1</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded password assigned to a variable. Extractable from the APK.</p>
+    <h3>Evidence</h3><pre class="code">        Log.d(TAG, &#34;login for &#34; + username + &#34; password=&#34; + password);
+
+        File out = new File(Environment.getExternalStorageDirectory(),
+                &#34;tokens/session.txt&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom, custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>22. blindspot sqli concat</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0009 · rule <code>semgrep:blindspot-sqli-concat</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/SqlInjection.java</code> : lines 13–14</div>
+      <div class="k">OWASP</div><div>M4</div>
+      <div class="k">CWE</div><div>CWE-89</div>
+    </div>
+    <h3>Description</h3><p>SQL query built with string concatenation; use parameterized queries.</p>
+    <h3>Evidence</h3><pre class="code">        return db.rawQuery(
+                &#34;SELECT * FROM users WHERE name = &#39;&#34; + username + &#34;&#39;&#34;, null);</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>23. blindspot ssl error proceed</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0020 · rule <code>semgrep:blindspot-ssl-error-proc</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 29–31</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-295</div>
+    </div>
+    <h3>Description</h3><p>WebView SSL errors bypassed with handler.proceed() (MITM).</p>
+    <h3>Evidence</h3><pre class="code">            public void onReceivedSslError(WebView view, SslErrorHandler handler,
+                                           SslError error) {
+                handler.proceed();</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>24. blindspot weak cipher</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0014 · rule <code>semgrep:blindspot-weak-cipher</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 30</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-327</div>
+    </div>
+    <h3>Description</h3><p>Weak cipher (DES/DESede/RC4/Blowfish) must not be used.</p>
+    <h3>Evidence</h3><pre class="code">        Cipher c = Cipher.getInstance(&#34;DES&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>25. blindspot webview file url access</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0017 · rule <code>semgrep:blindspot-webview-file-u</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 24</div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-926</div>
+    </div>
+    <h3>Description</h3><p>WebView file-URL access enabled; allows cross-origin file theft.</p>
+    <h3>Evidence</h3><pre class="code">        s.setAllowUniversalAccessFromFileURLs(true);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>26. blindspot webview file url access</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0018 · rule <code>semgrep:blindspot-webview-file-u</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 25</div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-926</div>
+    </div>
+    <h3>Description</h3><p>WebView file-URL access enabled; allows cross-origin file theft.</p>
+    <h3>Evidence</h3><pre class="code">        s.setAllowFileAccessFromFileURLs(true);</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>27. blindspot world accessible mode</h3>
+    <span class="pill p-high">high</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0005 · rule <code>semgrep:blindspot-world-accessib</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 23</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-276</div>
+    </div>
+    <h3>Description</h3><p>MODE_WORLD_READABLE/WRITEABLE exposes app files to all apps.</p>
+    <h3>Evidence</h3><pre class="code">                ctx.getSharedPreferences(&#34;creds&#34;, Context.MODE_WORLD_READABLE);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>28. Token used without expiry or refresh handling</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: low</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0057 · rule <code>BS-A05</code> v1.0.0 · engine: custom
+      · auth
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 35</div>
+      <div class="k">OWASP</div><div>M3</div>
+      <div class="k">CWE</div><div>CWE-613</div>
+    </div>
+    <h3>Description</h3><p>2 file(s) read auth/session tokens with no expiry, refresh, or deadline handling visible in the same file. Static analysis cannot confirm whether the server enforces token expiry or rotates refresh tokens; review the token lifecycle server-side before treating this as a vulnerability.</p>
+    <h3>Evidence</h3><pre class="code">       33 |         out.getParentFile().mkdirs();
+       34 |         FileOutputStream fos = new FileOutputStream(out);
+&gt;&gt;&gt;    35 |         fos.write((&#34;token=&#34; + prefs.getString(&#34;session_token&#34;, &#34;&#34;)).getBytes());
+       36 |         fos.close();
+       37 | 
+
+       10 | public class StickyBroadcast {
+       11 | 
+&gt;&gt;&gt;    12 |     public void announceLogin(Context ctx, String email, String sessionToken) {
+       13 |         Intent i = new Intent(&#34;com.blindspot.testapp.LOGIN_EVENT&#34;);
+       14 |         i.putExtra(&#34;email&#34;, email);</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Non-expiring tokens extend the replay window after theft (Medium), but only if the server also fails to enforce expiry, which is unverified.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> No expiry-related check was found near token usage in the client, but token lifetime policy is a server-side property that static analysis cannot observe.</p>
+    
+    <h3>Remediation</h3><p>Issue short-lived access tokens with explicit expiry, validate exp on every use, and implement refresh-token rotation. Enforce expiry server-side; client-side checks are defense in depth, not the control.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>29. AES/CBC used without observed integrity protection</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0050 · rule <code>BS-C14</code> v1.0.0 · engine: custom
+      · crypto
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 45</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-327</div>
+    </div>
+    <h3>Description</h3><p>AES/CBC without observed integrity protection in 1 file(s).</p>
+    <h3>Evidence</h3><pre class="code">       43 |         SecretKeySpec key = new SecretKeySpec(KEY, &#34;AES&#34;);
+       44 |         IvParameterSpec iv = new IvParameterSpec(IV);
+&gt;&gt;&gt;    45 |         Cipher c = Cipher.getInstance(&#34;AES/CBC/PKCS5Padding&#34;);
+       46 |         c.init(Cipher.ENCRYPT_MODE, key, iv);
+       47 |         return c.doFinal(data);</pre>
+    <p class="mut"><strong>Severity rationale:</strong> CBC without a MAC is malleable; where decryption errors are observable this enables padding-oracle decryption.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> AES/CBC is explicit but no javax.crypto.Mac/HmacSHA usage was found in the same file; integrity could still be handled in another class, so this needs review rather than a firm finding.</p>
+    
+    <h3>Remediation</h3><p>Prefer Cipher.getInstance(&#34;AES/GCM/NoPadding&#34;). If CBC must stay, add encrypt-then-MAC with HmacSHA256 over (IV || ciphertext) using an independent key, and verify the MAC before decrypting.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>30. Application backup enabled</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0023 · rule <code>BS-M02</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-312</div>
+    </div>
+    <h3>Description</h3><p>android:allowBackup is true (defaulted (attribute absent)). App-private data can be extracted via adb backup / Auto Backup and restored elsewhere.</p>
+    <h3>Evidence</h3><pre class="code">android:allowBackup attribute absent; Android defaults it to true</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: backup exposes app-private storage to anyone with adb access; impact depends on what sensitive data the app stores, which cannot be fully determined from the manifest alone.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: allowBackup is a manifest-level boolean; when the attribute is absent Android defaults it to true, which is documented platform behavior.</p>
+    
+    <h3>Remediation</h3><p>Set android:allowBackup=&#34;false&#34; unless backup is a genuine product requirement. If backup is required, use a restrictive android:fullBackupContent / android:dataExtractionRules file that excludes sensitive files, and encrypt sensitive data at rest.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>31. Outdated SDK policy (targetSdk / minSdk)</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0025 · rule <code>BS-M04</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      
+    </div>
+    <h3>Description</h3><p>Weak SDK policy: targetSdkVersion=28 is below the recommended minimum of 30; minSdkVersion=21 predates the runtime-permission model (API 23): dangerous permissions are granted at install time.</p>
+    <h3>Evidence</h3><pre class="code">android:targetSdkVersion=&#34;28&#34;
+
+android:minSdkVersion=&#34;21&#34;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: an outdated targetSdk forfeits platform hardening applied per API level; minSdk &lt; 23 additionally removes runtime permission control on old devices. Both widen the attack surface but do not directly disclose data by themselves.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: SDK versions are literal integers from the manifest&#39;s &lt;uses-sdk&gt; declaration.</p>
+    
+    <h3>Remediation</h3><p>Raise targetSdkVersion to 30 or higher (ideally the latest) and test against the new behavior changes. Raise minSdkVersion to 23+ so the runtime permission model applies on all supported devices.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>32. Dangerous permissions declared</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0026 · rule <code>BS-M05</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M6</div>
+      
+    </div>
+    <h3>Description</h3><p>6 dangerous permission(s) across 5 sensitive group(s): Camera: CAMERA; Contacts: READ_CONTACTS; Location: ACCESS_FINE_LOCATION; Microphone: RECORD_AUDIO; SMS: READ_SMS, SEND_SMS.</p>
+    <h3>Evidence</h3><pre class="code">&lt;uses-permission android:name=&#34;android.permission.READ_SMS&#34; /&gt;
+
+&lt;uses-permission android:name=&#34;android.permission.SEND_SMS&#34; /&gt;
+
+&lt;uses-permission android:name=&#34;android.permission.READ_CONTACTS&#34; /&gt;
+
+&lt;uses-permission android:name=&#34;android.permission.ACCESS_FINE_LOCATION&#34; /&gt;
+
+&lt;uses-permission android:name=&#34;android.permission.CAMERA&#34; /&gt;
+
+&lt;uses-permission android:name=&#34;android.permission.RECORD_AUDIO&#34; /&gt;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: SMS, call-log, and precise/background location permissions are MEDIUM because they enable surveillance-grade data collection; other dangerous groups (contacts, camera, microphone, storage, phone, calendar, sensors) are LOW as privacy-relevant but less directly exfiltrative on their own.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: permissions are literal &lt;uses-permission&gt; entries parsed from the manifest; Android&#39;s dangerous classification is documented platform behavior.</p>
+    
+    <h3>Remediation</h3><p>Request only permissions the app genuinely needs; prefer scoped alternatives (photo picker, approximate location, one-time permissions). Justify each dangerous permission in the Play Data safety section and handle denial gracefully.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>33. Excessive permission scope</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0027 · rule <code>BS-M06</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M6</div>
+      
+    </div>
+    <h3>Description</h3><p>App requests dangerous permissions from 5 distinct sensitive groups (Camera, Contacts, Location, Microphone, SMS): excessive scope for a typical app.</p>
+    <h3>Evidence</h3><pre class="code">permissions: android.permission.CAMERA
+
+permissions: android.permission.READ_CONTACTS
+
+permissions: android.permission.ACCESS_FINE_LOCATION
+
+permissions: android.permission.RECORD_AUDIO
+
+permissions: android.permission.READ_SMS, android.permission.SEND_SMS</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: spanning 3+ sensitive groups materially increases the privacy blast radius of compromise or SDK abuse, though scope alone does not prove data is exfiltrated.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: group membership is derived from literal manifest permissions against Android&#39;s documented dangerous groups.</p>
+    
+    <h3>Remediation</h3><p>Apply least privilege: drop permission groups not required for core features, request permissions in context (when the feature is used), and re-audit third-party SDKs that may be pulling in permissions via manifest merging.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>34. Provider grants URI permissions</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0031 · rule <code>BS-M11</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      
+    </div>
+    <h3>Description</h3><p>1 provider(s) set grantUriPermissions=true: com.blindspot.testapp.TestProvider.</p>
+    <h3>Evidence</h3><pre class="code">&lt;provider android:name=&#34;com.blindspot.testapp.TestProvider&#34; android:grantUriPermissions=&#34;true&#34;&gt;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: URI grants are a legitimate sharing mechanism, but on an exported provider (or one reachable via intents) careless grants enable confused-deputy data access by third-party apps.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: the grantUriPermissions flag is a literal boolean on the parsed provider declaration.</p>
+    
+    <h3>Remediation</h3><p>Only set grantUriPermissions=&#34;true&#34; when temporary URI grants are genuinely needed. Scope grants with &lt;grant-uri-permission&gt; path restrictions, prefer FLAG_GRANT_READ_URI_PERMISSION over write, and revoke grants with revokeUriPermission when done.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>35. Intent-filter-reachable component without permission guard</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0032 · rule <code>BS-M14</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      
+    </div>
+    <h3>Description</h3><p>Components reachable via intent filters with no permission guard (review whether exposure is intentional): com.blindspot.testapp.MainActivity &lt;activity&gt; (explicitly exported); com.blindspot.testapp.SmsReceiver &lt;receiver&gt; (explicitly exported).</p>
+    <h3>Evidence</h3><pre class="code">&lt;activity android:name=&#34;com.blindspot.testapp.MainActivity&#34;&gt; declares 1 intent-filter(s), no permission
+
+&lt;receiver android:name=&#34;com.blindspot.testapp.SmsReceiver&#34;&gt; declares 1 intent-filter(s), no permission</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: intent-filter reachability without any permission check is the standard setup for component-hijacking issues; severity depends on what the component does with attacker input, which needs manual review.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> MEDIUM: reachability is certain from the intent filters, but whether the exposure is a vulnerability or intended behavior (share target, deep link) cannot be decided statically.</p>
+    
+    <h3>Remediation</h3><p>For each listed component decide: if external access is not needed, set android:exported=&#34;false&#34;; if it is needed, add a permission guard (signature level where possible) and validate all incoming intents. Record the decision so the exposure is intentional, not accidental.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>36. Implicitly exported component (missing android:exported)</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: low</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0034 · rule <code>BS-M18</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-926</div>
+    </div>
+    <h3>Description</h3><p>Decoded manifest XML text is unavailable, so the presence of android:exported attributes cannot be verified for 2 intent-filter component(s) on targetSdk=28.</p>
+    <h3>Evidence</h3><pre class="code">&lt;activity android:name=&#34;com.blindspot.testapp.MainActivity&#34;&gt;
+
+&lt;receiver android:name=&#34;com.blindspot.testapp.SmsReceiver&#34;&gt;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: if these components lack android:exported on targetSdk &lt; 31 they are implicitly exported.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> LOW: without the manifest XML text the android:exported attribute cannot actually be inspected.</p>
+    
+    <h3>Remediation</h3><p>Add an explicit android:exported=&#34;true&#34; or &#34;false&#34; to every component (required for targetSdk 31+ anyway). Set it to false unless external access is genuinely required, and guard exported components with a permission.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>37. Deep link declared without android:autoVerify</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: low</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0058 · rule <code>BS-P01</code> v1.0.0 · engine: custom
+      · platform
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-940</div>
+    </div>
+    <h3>Description</h3><p>Deep-link activities found, but the raw manifest text is not available so the autoVerify attribute could not be verified.</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> Medium: same impact as a missing autoVerify if it is absent.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Low: apktool manifest decoding failed or was unavailable, so the attribute state is unknown.</p>
+    
+    <h3>Remediation</h3><p>Add android:autoVerify=&#34;true&#34; to the &lt;intent-filter&gt; and publish a valid assetlinks.json at https://&lt;host&gt;/.well-known/assetlinks.json containing the app&#39;s signing-certificate SHA-256 fingerprint.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>38. Exported debug/test/staging activity</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0060 · rule <code>BS-P17</code> v1.0.0 · engine: custom
+      · platform
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M8</div>
+      
+    </div>
+    <h3>Description</h3><p>2 exported activit(ies) look like debug/test screens.</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> Medium: test screens frequently expose internal functionality or data; any app can launch an exported activity.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Medium: export status is certain; the debug/test nature is inferred from the class name and needs confirmation.</p>
+    
+    <h3>Remediation</h3><p>Remove debug/test activities from release builds (build-type source sets) or set android:exported=&#34;false&#34; and gate them behind a signature-level permission and debug-only build flags.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>39. Plaintext secrets in resource XML</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0037 · rule <code>BS-S11</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>extracted/res/values/strings.xml</code> : lines 4</div>
+      <div class="k">OWASP</div><div>M1</div>
+      <div class="k">CWE</div><div>CWE-798</div>
+    </div>
+    <h3>Description</h3><p>Found 1 resource string(s) holding secret-looking values.</p>
+    <h3>Evidence</h3><pre class="code">        2 | &lt;resources&gt;
+        3 |     &lt;string name=&#34;app_name&#34;&gt;Blindspot Test App&lt;/string&gt;
+&gt;&gt;&gt;     4 |     &lt;string name=&#34;api_key&#34;&gt;AIzaSyD-testkey-1234567890abcdef&lt;/string&gt;
+        5 |     &lt;string name=&#34;welcome&#34;&gt;Welcome to the synthetic fixture app&lt;/string&gt;
+        6 | &lt;/resources&gt;</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Resource values ship in plaintext inside the APK and are trivially extractable.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The resource name indicates a secret and the value passes a secret heuristic on a real XML line.</p>
+    
+    <h3>Remediation</h3><p>Do not ship secrets in resources. Fetch keys/tokens from your backend at runtime after authentication, and rotate any secret found in res/.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>40. Sensitive data copied to the clipboard</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0038 · rule <code>BS-S12</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 44</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-200</div>
+    </div>
+    <h3>Description</h3><p>Found 1 clipboard write(s) adjacent to sensitive keywords.</p>
+    <h3>Evidence</h3><pre class="code">       42 |         ClipboardManager cm =
+       43 |                 (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
+&gt;&gt;&gt;    44 |         cm.setPrimaryClip(ClipData.newPlainText(&#34;token&#34;,
+       45 |                 prefs.getString(&#34;session_token&#34;, &#34;&#34;)));
+       46 |     }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Clipboard contents are readable by other apps, exposing copied secrets.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The clipboard call is real, but the nearby keyword is a heuristic link rather than proven data flow.</p>
+    
+    <h3>Remediation</h3><p>Avoid placing secrets on the clipboard. If copy is unavoidable, clear the clipboard after a short timeout and warn the user; prefer autofill APIs for credentials.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>41. Sensitive data passed as Intent extras</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0039 · rule <code>BS-S14</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 39</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-200</div>
+    </div>
+    <h3>Description</h3><p>Found 2 putExtra call(s) with sensitive keys.</p>
+    <h3>Evidence</h3><pre class="code">       37 | 
+       38 |         Intent next = new Intent(ctx, PasswordEchoActivity.class);
+&gt;&gt;&gt;    39 |         next.putExtra(&#34;password&#34;, password);
+       40 |         ctx.startActivity(next);
+       41 | 
+
+       13 |         Intent i = new Intent(&#34;com.blindspot.testapp.LOGIN_EVENT&#34;);
+       14 |         i.putExtra(&#34;email&#34;, email);
+&gt;&gt;&gt;    15 |         i.putExtra(&#34;session_token&#34;, sessionToken);
+       16 |         ctx.sendStickyBroadcast(i);
+       17 |     }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Secrets in Intent extras can be intercepted or logged outside the app&#39;s control.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The extra key literally names a secret on a real source line.</p>
+    
+    <h3>Remediation</h3><p>Do not pass secrets in Intent extras. Pass an opaque reference or session id and resolve the secret from secure storage in the receiving component.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>42. Sensitive data in URL query parameters</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0040 · rule <code>BS-S16</code> v1.0.0 · engine: custom
+      · storage
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/TokenInUrl.java</code> : lines 14</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-598</div>
+    </div>
+    <h3>Description</h3><p>Found 1 URL(s) with sensitive query parameters.</p>
+    <h3>Evidence</h3><pre class="code">       12 |     public int sync(String apiKey) throws Exception {
+       13 |         URL url = new URL(
+&gt;&gt;&gt;    14 |                 &#34;https://api.testapp.blindspot.example/sync?api_key=&#34; + apiKey);
+       15 |         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+       16 |         conn.setConnectTimeout(5000);</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Query-string secrets end up in server/proxy logs and caches.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> The URL and the sensitive parameter name were matched literally on a real line.</p>
+    
+    <h3>Remediation</h3><p>Send secrets in the request body or an Authorization header over TLS, never in the URL query string.</p>
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>43. Path traversal via File built from intent/user input</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: low</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0052 · rule <code>BS-W10</code> v1.0.0 · engine: custom
+      · webview
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/PathTraversal.java</code> : lines 17</div>
+      <div class="k">OWASP</div><div>M4</div>
+      <div class="k">CWE</div><div>CWE-22</div>
+    </div>
+    <h3>Description</h3><p>2 File construction(s) use variable path components in files that read intent extras or URI data.</p>
+    <h3>Evidence</h3><pre class="code">       15 |         super.onCreate(savedInstanceState);
+       16 |         String name = getIntent().getStringExtra(&#34;filename&#34;);
+&gt;&gt;&gt;    17 |         File target = new File(getFilesDir(), name);
+       18 |         setTitle(target.getAbsolutePath());
+       19 |     }
+
+       22 |             Object plugin = clazz.newInstance();
+       23 | 
+&gt;&gt;&gt;    24 |             File dex = new File(Environment.getExternalStorageDirectory(),
+       25 |                     &#34;plugins/plugin.apk&#34;);
+       26 |             DexClassLoader loader = new DexClassLoader(</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: path traversal can escape the intended directory and reach sensitive files; impact depends on the operation and the app&#39;s file permissions.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> LOW: only a variable path component and the presence of intent-input reads in the same file were observed. It is not proven that the intent data actually reaches the File constructor, nor that canonicalization is absent; exploitability not confirmed.</p>
+    
+    <h3>Remediation</h3><p>Canonicalize paths with getCanonicalPath(), verify the result stays inside the intended directory, and prefer fixed allow-listed file names over raw input.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>44. Unsafe Java deserialization</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0053 · rule <code>BS-W11</code> v1.0.0 · engine: custom
+      · webview
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/Deserialization.java</code> : lines 8</div>
+      <div class="k">OWASP</div><div>M4</div>
+      <div class="k">CWE</div><div>CWE-502</div>
+    </div>
+    <h3>Description</h3><p>Unsafe deserialization API used (2 call site(s)).</p>
+    <h3>Evidence</h3><pre class="code">        6 | /**
+        7 |  * Intentionally insecure: Java native deserialization of untrusted bytes
+&gt;&gt;&gt;     8 |  * via ObjectInputStream.readObject().
+        9 |  */
+       10 | public class Deserialization {
+
+       13 |         ObjectInputStream ois =
+       14 |                 new ObjectInputStream(new ByteArrayInputStream(data));
+&gt;&gt;&gt;    15 |         return ois.readObject();
+       16 |     }
+       17 | }</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: deserializing untrusted data can lead to code execution; impact depends on the data source and available gadget classes.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> MEDIUM: the deserialization API is really used, but it is not proven that the deserialized bytes come from an untrusted source; exploitability not confirmed.</p>
+    
+    <h3>Remediation</h3><p>Avoid serializing sensitive objects. Prefer JSON with a strict schema, validate and integrity-check any data before deserialization, and never deserialize data from untrusted sources.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>45. Dynamic code loading with non-constant dex path</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: low</span>
+    <span class="pill p-info">heuristic</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0054 · rule <code>BS-W12</code> v1.0.0 · engine: custom
+      · webview
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/UnsafeReflection.java</code> : lines 26</div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-494</div>
+    </div>
+    <h3>Description</h3><p>Dynamic code loading with a variable path (1 call site(s)).</p>
+    <h3>Evidence</h3><pre class="code">       24 |             File dex = new File(Environment.getExternalStorageDirectory(),
+       25 |                     &#34;plugins/plugin.apk&#34;);
+&gt;&gt;&gt;    26 |             DexClassLoader loader = new DexClassLoader(
+       27 |                     dex.getAbsolutePath(),
+       28 |                     getCacheDir().getAbsolutePath(),</pre>
+    <p class="mut"><strong>Severity rationale:</strong> MEDIUM: loading code from a variable path is risky if the location is attacker-influenced.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> LOW: the path is a variable, but its origin and whether it is attacker-writable are not established; exploitability not confirmed.</p>
+    
+    <h3>Remediation</h3><p>Load code only from the app&#39;s private, read-only directories. Never load dex from external storage, downloads or network URLs, and verify integrity (signature/hash) before loading.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>46. blindspot cleartext url</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0002 · rule <code>semgrep:blindspot-cleartext-url</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/DebugEndpoints.java</code> : lines 17</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-319</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded cleartext http:// URL.</p>
+    <h3>Evidence</h3><pre class="code">                ? &#34;http://staging.testapp.blindspot.example&#34;</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>47. blindspot cleartext url</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0011 · rule <code>semgrep:blindspot-cleartext-url</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/TrustAllCerts.java</code> : lines 42</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-319</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded cleartext http:// URL.</p>
+    <h3>Evidence</h3><pre class="code">        URL url = new URL(&#34;http://api.testapp.blindspot.example/sync&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>48. blindspot cleartext url</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0021 · rule <code>semgrep:blindspot-cleartext-url</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 34</div>
+      <div class="k">OWASP</div><div>M5</div>
+      <div class="k">CWE</div><div>CWE-319</div>
+    </div>
+    <h3>Description</h3><p>Hardcoded cleartext http:// URL.</p>
+    <h3>Evidence</h3><pre class="code">        wv.loadUrl(&#34;http://testapp.blindspot.example/landing&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>49. blindspot external storage</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0007 · rule <code>semgrep:blindspot-external-stora</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/InsecureStorage.java</code> : lines 31</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-312</div>
+    </div>
+    <h3>Description</h3><p>External storage is world-readable; do not store sensitive data there.</p>
+    <h3>Evidence</h3><pre class="code">        File out = new File(Environment.getExternalStorageDirectory(),</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>50. blindspot external storage</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0008 · rule <code>semgrep:blindspot-external-stora</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/NativeLoad.java</code> : lines 13</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-312</div>
+    </div>
+    <h3>Description</h3><p>External storage is world-readable; do not store sensitive data there.</p>
+    <h3>Evidence</h3><pre class="code">        File lib = new File(Environment.getExternalStorageDirectory(),</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>51. blindspot external storage</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0012 · rule <code>semgrep:blindspot-external-stora</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/UnsafeReflection.java</code> : lines 24</div>
+      <div class="k">OWASP</div><div>M9</div>
+      <div class="k">CWE</div><div>CWE-312</div>
+    </div>
+    <h3>Description</h3><p>External storage is world-readable; do not store sensitive data there.</p>
+    <h3>Evidence</h3><pre class="code">            File dex = new File(Environment.getExternalStorageDirectory(),</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>52. blindspot insecure random</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0016 · rule <code>semgrep:blindspot-insecure-rando</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 51</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-338</div>
+    </div>
+    <h3>Description</h3><p>java.util.Random is predictable; use java.security.SecureRandom for security values.</p>
+    <h3>Evidence</h3><pre class="code">        Random rng = new Random();</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>53. blindspot js interface</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0019 · rule <code>semgrep:blindspot-js-interface</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WebViewBugs.java</code> : lines 26</div>
+      <div class="k">OWASP</div><div>M8</div>
+      <div class="k">CWE</div><div>CWE-749</div>
+    </div>
+    <h3>Description</h3><p>JavaScript bridge exposed to WebView; audit bridged methods for sensitive operations.</p>
+    <h3>Evidence</h3><pre class="code">        wv.addJavascriptInterface(new JsBridge(), &#34;AndroidBridge&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>54. blindspot md5</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0013 · rule <code>semgrep:blindspot-md5</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/WeakCrypto.java</code> : lines 19</div>
+      <div class="k">OWASP</div><div>M10</div>
+      <div class="k">CWE</div><div>CWE-327</div>
+    </div>
+    <h3>Description</h3><p>MD5 is broken for security purposes; use SHA-256+ or a password hashing function.</p>
+    <h3>Evidence</h3><pre class="code">        MessageDigest md = MessageDigest.getInstance(&#34;MD5&#34;);</pre>
+    
+    
+    
+    
+    
+    <p class="mut"><strong>Also detected by:</strong>
+      custom</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>55. blindspot unsafe deserialization</h3>
+    <span class="pill p-medi">medium</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0003 · rule <code>semgrep:blindspot-unsafe-deseria</code> v · engine: semgrep
+      
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/Deserialization.java</code> : lines 15</div>
+      <div class="k">OWASP</div><div>M4</div>
+      <div class="k">CWE</div><div>CWE-502</div>
+    </div>
+    <h3>Description</h3><p>Java deserialization of untrusted data can lead to remote code execution.</p>
+    <h3>Evidence</h3><pre class="code">        return ois.readObject();</pre>
+    
+    
+    
+    
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>56. No network security configuration referenced</h3>
+    <span class="pill p-info">informational</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0033 · rule <code>BS-M15</code> v1.0.0 · engine: custom
+      · manifest
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>AndroidManifest.xml</code></div>
+      <div class="k">OWASP</div><div>M5</div>
+      
+    </div>
+    <h3>Description</h3><p>No android:networkSecurityConfig is referenced in the manifest. Informational: no pinning, per-domain TLS policy, or cleartext exceptions are declared.</p>
+    <h3>Evidence</h3><pre class="code">android:networkSecurityConfig not declared</pre>
+    <p class="mut"><strong>Severity rationale:</strong> INFORMATIONAL: the absence of a network security config is inventory metadata, not a vulnerability; it only means no declarative network controls exist.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> HIGH: the attribute is either present on the application tag or it is not; absence is directly observed.</p>
+    
+    <h3>Remediation</h3><p>No action required by this finding alone. Consider adding a network security config to declare certificate pinning, restrict cleartext traffic per-domain, and distrust user CAs in release builds.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>57. Certificate pinning presence check</h3>
+    <span class="pill p-info">informational</span>
+    <span class="pill p-info">confidence: medium</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0043 · rule <code>BS-N08</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      
+      <div class="k">OWASP</div><div>M5</div>
+      
+    </div>
+    <h3>Description</h3><p>No certificate pinning detected; assess threat model. Absence alone is not a vulnerability.</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> Informational: pinning is a defense-in-depth choice, not a vulnerability by itself.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Heuristic keyword search; custom or native pinning may be missed, hence medium confidence.</p>
+    
+    <h3>Remediation</h3><p>If your threat model includes hostile networks, add certificate pinning (e.g. OkHttp CertificatePinner or &lt;pin-set&gt; in the network security config) with a backup pin and a rotation plan.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>58. Backend endpoint inventory (https hosts)</h3>
+    <span class="pill p-info">informational</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0045 · rule <code>BS-N18</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>tests/fixtures/vuln_app/NetworkSafe.java</code> : lines 12</div>
+      <div class="k">OWASP</div><div>M5</div>
+      
+    </div>
+    <h3>Description</h3><p>Backend inventory: 1 distinct https host(s): api.testapp.blindspot.example</p>
+    <h3>Evidence</h3><pre class="code">       10 | public class NetworkSafe {
+       11 | 
+&gt;&gt;&gt;    12 |     private static final String BASE = &#34;https://api.testapp.blindspot.example&#34;;
+       13 | 
+       14 |     public int ping() throws Exception {</pre>
+    <p class="mut"><strong>Severity rationale:</strong> Informational: inventory for scoping, not a vulnerability.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Hosts taken literally from https:// strings in source.</p>
+    
+    <h3>Remediation</h3><p>Review the inventory: confirm each host is in scope, served over TLS 1.2+, and covered by the app&#39;s certificate validation.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>59. INTERNET permission without a network security configuration</h3>
+    <span class="pill p-info">informational</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0046 · rule <code>BS-N20</code> v1.0.0 · engine: custom
+      · network
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      
+      <div class="k">OWASP</div><div>M5</div>
+      
+    </div>
+    <h3>Description</h3><p>App uses INTERNET but declares no network security configuration.</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> Informational: absence of a config is not itself a vulnerability; it limits declarative transport-policy review.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> Manifest declares INTERNET and has no android:networkSecurityConfig attribute.</p>
+    
+    <h3>Remediation</h3><p>Add an explicit network security configuration declaring cleartextTrafficPermitted=&#34;false&#34;, appropriate trust anchors, and pinning where the threat model warrants it.</p>
+    
+    
+  </div>
+</div>
+
+<div class="finding">
+  <div class="finding-head">
+    <h3>60. Native library inventory</h3>
+    <span class="pill p-info">informational</span>
+    <span class="pill p-info">confidence: high</span>
+    <span class="pill p-info">static</span>
+    
+    <div class="mut" style="margin-top:6px;font-size:12px">
+      177cd39e-0059 · rule <code>BS-P09</code> v1.0.0 · engine: custom
+      · platform
+    </div>
+  </div>
+  <div class="finding-body">
+    <div class="kv">
+      <div class="k">Location</div><div><code>lib/armeabi-v7a/libnative.so</code></div>
+      <div class="k">OWASP</div><div>M7</div>
+      
+    </div>
+    <h3>Description</h3><p>APK ships 1 native librar(ies): lib/armeabi-v7a/libnative.so</p>
+    
+    <p class="mut"><strong>Severity rationale:</strong> Informational: inventory only, not a vulnerability.</p>
+    <p class="mut"><strong>Confidence rationale:</strong> High: the list comes directly from the APK&#39;s lib/ entries.</p>
+    
+    <h3>Remediation</h3><p>No action required from this inventory alone. Review the listed libraries for known-vulnerable versions and confirm they are built with modern hardening (PIE, RELRO, stack canaries).</p>
+    
+    
+  </div>
+</div>
+
+
+<h2 id="limitations">Limitations and exclusions</h2>
+<ul>
+  <li>Static analysis only — no runtime, network, or backend testing was performed.</li>
+  <li>Findings marked <em>heuristic</em> or <em>ai-unverified</em> require manual confirmation.</li>
+  <li>Absence of a finding is not proof of absence of the vulnerability.</li>
+  <li>jadx not installed — Java/Kotlin decompilation skipped. Install from https://github.com/skylot/jadx to enable it.</li><li>apktool not installed — resource/smali decoding skipped. Install from https://apktool.org to enable it.</li><li>AI review disabled in scan configuration.</li>
+  
+</ul>
+
+
+<footer>
+  Generated by Blindspot Security Console — local-first Android APK assessment.
+  Report generated 2026-10-17T19:16:07.208583 · scan 177cd39efdd74e129f0d7c701e182887.
+  Findings are point-in-time static observations for authorized assessment use.
+</footer>
+
+</div>
+</body>
+</html>

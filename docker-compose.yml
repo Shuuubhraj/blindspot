@@ -1,0 +1,65 @@
+# Blindspot — containerized deployment.
+#
+# UNTESTED IN THIS ENVIRONMENT: Docker is not installed where Blindspot was
+# developed, so this file has been written from the Dockerfiles' documented
+# behavior but never built here. Expect to iterate on first `compose up`.
+#
+# Usage:
+#   cp .env.example .env        # then edit secrets (BLINDSPOT_API_TOKEN)
+#   docker compose up --build
+#   # console + API at http://localhost:8000
+#
+# With local AI review (Ollama sidecar):
+#   docker compose --profile ai up --build
+
+services:
+  api:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./frontend/dist:/app/frontend/dist:ro
+      - ./scripts:/app/scripts:ro
+      - blindspot-data:/app/backend/blindspot/data
+      - blindspot-workspaces:/app/backend/blindspot/workspaces
+      - blindspot-uploads:/app/backend/blindspot/uploads
+    # .env is optional; compose warns if missing — defaults are safe for localhost
+    env_file:
+      - path: ./.env
+        required: false
+    environment:
+      BLINDSPOT_HOST: "0.0.0.0"
+      BLINDSPOT_OLLAMA_URL: "http://ollama:11434"
+    ports:
+      - "8000:8000"
+    command: >
+      bash -c "
+        apt-get update -qq &&
+        apt-get install -y -qq libpango-1.0-0 libpangocairo-1.0-0 > /dev/null &&
+        pip install -q /app/backend &&
+        exec python -m blindspot.cli serve --host 0.0.0.0 --port 8000
+      "
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional local AI review sidecar. Disabled by default; enable with --profile ai.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    # Pull a model once the daemon is up, e.g.:
+    #   docker compose exec ollama ollama pull qwen2.5-coder:7b
+
+volumes:
+  blindspot-data:
+  blindspot-workspaces:
+  blindspot-uploads:
+  ollama-models:

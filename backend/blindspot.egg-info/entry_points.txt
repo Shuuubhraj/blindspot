@@ -1,0 +1,2 @@
+[console_scripts]
+blindspot = blindspot.cli:main
