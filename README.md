@@ -12,12 +12,12 @@
   <img src="https://img.shields.io/badge/python-3.12-blue" alt="Python 3.12" />
   <img src="https://img.shields.io/badge/react-18-61dafb" alt="React 18" />
   <img src="https://img.shields.io/badge/AI-ollama%20local-black" alt="Local Ollama AI" />
-  <img src="https://img.shields.io/badge/on--device-100%25-green" alt="100% on-device" />
+  <img src="https://img.shields.io/badge/On--device-100%25-green" alt="100% On-device" />
 </p>
 
 ---
 
-**Blindspot** is a on-device Android APK security assessment platform. Drop in an APK and get a real static-analysis security report: 120 original detection rules, OWASP Mobile Top 10 (2024) mapping, an optional on-device AI second opinion, and one-click HTML / PDF / JSON exports. Everything runs on your own machine. Nothing is uploaded anywhere.
+**Blindspot** is an On-device Android APK security assessment platform. Drop in an APK and get a real static-analysis security report: 120 original detection rules, OWASP Mobile Top 10 (2024) mapping, an optional On-device AI second opinion, and one-click HTML / PDF / JSON exports. Everything runs on your own machine. Nothing is uploaded anywhere.
 
 Built by [@shuuubhraj](https://github.com/shuuubhraj).
 
