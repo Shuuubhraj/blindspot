@@ -15,12 +15,6 @@
   <img src="https://img.shields.io/badge/local--first-100%25-green" alt="100% local-first" />
 </p>
 
-<p align="center">
-  <a href="samples/blindspot-sample-report-diva.pdf">
-    <img src="https://img.shields.io/badge/View_Sample_Report-DIVA_APK-0071e3?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="View sample report" />
-  </a>
-</p>
-
 ---
 
 **Blindspot** is a local-first Android APK security assessment platform. Drop in an APK and get a real static-analysis security report: 120 original detection rules, OWASP Mobile Top 10 (2024) mapping, an optional on-device AI second opinion, and one-click HTML / PDF / JSON exports. Everything runs on your own machine. Nothing is uploaded anywhere.
@@ -69,6 +63,12 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 | Scan history | AI setup |
 |---|---|
 | ![Scan history](screenshots/Scan%20History.jpg) | ![AI setup](screenshots/system%202.jpg) |
+
+<p align="center">
+  <a href="samples/blindspot-sample-report-diva.pdf">
+    <img src="https://img.shields.io/badge/View_Sample_Report-DIVA_APK-0071e3?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="View sample report" />
+  </a>
+</p>
 
 ## How it works
 
