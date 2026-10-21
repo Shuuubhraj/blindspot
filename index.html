@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blindspot - How It Works</title>
+<meta name="description" content="Blindspot is an On-device static analysis platform for Android APKs. A detailed breakdown of how it tests an APK, its 200 detection rules, its pipeline and its local AI reviewer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ffffff'/%3E%3Cg fill='none' stroke='%231d1d1f' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 32c8-10 16-15 24-15s16 5 24 15c-8 10-16 15-24 15s-16-5-24-15z'/%3E%3Ccircle cx='32' cy='32' r='7'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root{
+    --blue:#0071e3; --blue-hover:#0077ed;
+    --bg:#000000; --bg-soft:#0b0b0d;
+    --card:#161617; --card-2:#1d1d1f;
+    --text:#f5f5f7; --text-dim:#a1a1a6; --text-faint:#6e6e73;
+    --line:rgba(255,255,255,.09);
+    --violet:#a259ff; --emerald:#30d158; --red:#ff453a; --amber:#ffd60a;
+    --radius:18px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display",Inter,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    line-height:1.6;
+  }
+  ::selection{background:rgba(0,113,227,.35)}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{color:var(--blue-hover)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+
+  /* ---------- nav ---------- */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(0,0,0,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex;align-items:center;gap:10px;height:54px;overflow-x:auto;scrollbar-width:none}
+  nav .wrap::-webkit-scrollbar{display:none}
+  nav .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;color:var(--text);white-space:nowrap;margin-right:14px}
+  nav a.nl{color:var(--text-dim);font-size:13.5px;white-space:nowrap;padding:6px 9px;border-radius:8px}
+  nav a.nl:hover{color:var(--text);background:rgba(255,255,255,.06)}
+
+  /* ---------- hero ---------- */
+  .hero{padding:84px 0 64px;text-align:center;background:radial-gradient(900px 480px at 50% -120px,rgba(0,113,227,.22),transparent 65%),var(--bg)}
+  .logo-badge{
+    width:104px;height:104px;margin:0 auto 26px;border-radius:26px;background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 18px 50px rgba(0,113,227,.28),0 4px 18px rgba(0,0,0,.5);
+  }
+  .hero h1{font-size:clamp(44px,7vw,68px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+  .hero .tagline{font-size:clamp(21px,3.4vw,30px);font-weight:600;color:var(--blue);margin-top:10px;letter-spacing:-.01em}
+  .hero .sub{max-width:720px;margin:20px auto 0;color:var(--text-dim);font-size:17.5px}
+  .hero .sub strong{color:var(--text)}
+  .stats{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:38px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 22px;min-width:132px}
+  .stat .n{font-size:27px;font-weight:800;letter-spacing:-.01em}
+  .stat .l{font-size:12.5px;color:var(--text-dim);margin-top:2px}
+  .credit{margin-top:26px;color:var(--text-faint);font-size:13.5px}
+  .credit a{color:var(--text-dim)}
+
+  /* ---------- sections ---------- */
+  section{padding:64px 0 8px}
+  .kicker{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--blue)}
+  h2{font-size:clamp(28px,4.4vw,40px);font-weight:800;letter-spacing:-.02em;line-height:1.15;margin:10px 0 14px}
+  .lead{color:var(--text-dim);font-size:17px;max-width:820px}
+  .lead strong, p strong{color:var(--text)}
+  p.body{color:var(--text-dim);font-size:16px;max-width:860px;margin-top:12px}
+
+  .grid{display:grid;gap:14px;margin-top:28px}
+  .g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:860px){.g3,.g4{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.g2,.g3,.g4{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .card h3{font-size:17px;font-weight:700;margin-bottom:7px;letter-spacing:-.01em}
+  .card p{color:var(--text-dim);font-size:14.8px}
+  .card .ic{font-size:22px;margin-bottom:10px;display:block}
+  .card code, p code, li code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86em;
+    background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:6px;padding:1px 6px;color:#e8e8ed;
+  }
+  ul.tight{list-style:none;margin-top:12px}
+  ul.tight li{color:var(--text-dim);font-size:15.5px;padding:7px 0 7px 22px;position:relative;border-bottom:1px solid var(--line)}
+  ul.tight li:last-child{border-bottom:none}
+  ul.tight li::before{content:"";position:absolute;left:2px;top:15px;width:7px;height:7px;border-radius:50%;background:var(--blue)}
+  ul.tight li strong{color:var(--text)}
+
+  /* ---------- pipeline ---------- */
+  .pipe{margin-top:30px;display:flex;flex-direction:column;gap:0}
+  .stage{display:flex;gap:18px;position:relative;padding:0 0 26px 0}
+  .stage::before{content:"";position:absolute;left:23px;top:52px;bottom:2px;width:2px;background:linear-gradient(rgba(0,113,227,.55),rgba(0,113,227,.12))}
+  .stage:last-child::before{display:none}
+  .stage .num{
+    flex:0 0 48px;width:48px;height:48px;border-radius:50%;
+    background:var(--card-2);border:1.5px solid rgba(0,113,227,.6);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;z-index:1;
+  }
+  .stage .sc{flex:1;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px}
+  .stage h3{font-size:17.5px;font-weight:700;display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+  .stage h3 .tag{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);background:rgba(0,113,227,.14);border:1px solid rgba(0,113,227,.35);padding:3px 9px;border-radius:999px}
+  .stage h3 .tag.violet{color:#cf9fff;background:rgba(162,89,255,.13);border-color:rgba(162,89,255,.4)}
+  .stage h3 .tag.green{color:#7ee2a0;background:rgba(48,209,88,.1);border-color:rgba(48,209,88,.35)}
+  .stage p{color:var(--text-dim);font-size:15px;margin-top:7px}
+  .stage p strong{color:var(--text)}
+
+  /* ---------- rules table ---------- */
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:28px}
+  @media(max-width:860px){.rules{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.rules{grid-template-columns:1fr}}
+  .rule{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .rule .top{display:flex;justify-content:space-between;align-items:baseline}
+  .rule .cnt{font-size:30px;font-weight:800;color:var(--blue)}
+  .rule .pfx{font-size:12px;color:var(--text-faint);font-family:ui-monospace,Menlo,monospace}
+  .rule h3{font-size:16.5px;font-weight:700;margin:4px 0 6px}
+  .rule p{color:var(--text-dim);font-size:14px}
+
+  /* ---------- pills / badges ---------- */
+  .pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;letter-spacing:.02em}
+  .pill.green{color:#7ee2a0;background:rgba(48,209,88,.12);border:1px solid rgba(48,209,88,.4)}
+  .pill.red{color:#ff9d97;background:rgba(255,69,58,.12);border:1px solid rgba(255,69,58,.4)}
+  .pill.amber{color:#ffe27a;background:rgba(255,214,10,.1);border:1px solid rgba(255,214,10,.35)}
+  .pill.violet{color:#cf9fff;background:rgba(162,89,255,.13);border:1px solid rgba(162,89,255,.4)}
+  .pill.blue{color:#7db9ff;background:rgba(0,113,227,.13);border:1px solid rgba(0,113,227,.4)}
+
+  .flow{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:24px}
+  .flow .box{background:var(--card-2);border:1px solid var(--line);border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600}
+  .flow .arr{color:var(--text-faint);font-size:17px}
+
+  .callout{
+    margin-top:28px;border-radius:var(--radius);padding:24px;
+    background:linear-gradient(135deg,rgba(0,113,227,.14),rgba(162,89,255,.1));
+    border:1px solid rgba(0,113,227,.35);
+  }
+  .callout h3{font-size:18px;margin-bottom:8px}
+  .callout p{color:#d8d8de;font-size:15.5px}
+
+  /* ---------- Q&A ---------- */
+  .qa{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-top:14px}
+  .qa .q{font-size:17px;font-weight:700}
+  .qa .q::before{content:"Q. ";color:var(--blue)}
+  .qa .a{color:var(--text-dim);font-size:15.5px;margin-top:9px}
+  .qa .a::before{content:"Say: ";color:var(--emerald);font-weight:700}
+  .qa .a strong{color:var(--text)}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;
+    background:var(--blue);color:#fff;font-weight:700;font-size:15.5px;
+    padding:13px 26px;border-radius:999px;border:1px solid var(--blue);
+    transition:background .2s ease,transform .15s ease;
+  }
+  .btn:hover{background:var(--blue-hover);color:#fff;transform:translateY(-1px)}
+  .btn.ghost{background:transparent;color:var(--text);border-color:rgba(255,255,255,.28)}
+  .btn.ghost:hover{background:rgba(255,255,255,.08);color:#fff}
+
+  footer{margin-top:76px;border-top:1px solid var(--line);padding:34px 0 46px;text-align:center;color:var(--text-faint);font-size:14px}
+  footer .flogo{display:flex;justify-content:center;margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">
+      <svg width="24" height="24" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#ffffff"/><g fill="none" stroke="#1d1d1f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 32c8-10 16-15 24-15s16 5 24 15c-8 10-16 15-24 15s-16-5-24-15z"/><circle cx="32" cy="32" r="7"/></g></svg>
+      Blindspot
+    </span>
+    <a class="nl" href="#about">About</a>
+    <a class="nl" href="#stack">Tech Stack</a>
+    <a class="nl" href="#pipeline">Pipeline</a>
+    <a class="nl" href="#rules">200 Checks</a>
+    <a class="nl" href="#engines">Engines</a>
+    <a class="nl" href="#ai">AI Reviewer</a>
+    <a class="nl" href="#buttons">AI Verify and Fix</a>
+    <a class="nl" href="#reports">Reports</a>
+    <a class="nl" href="#interview">Interview Q and A</a>
+    <a class="nl" href="#author">Author</a>
+    <a class="nl" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener" style="color:#fff;font-weight:700">GitHub ↗</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="logo-badge">
+      <svg width="66" height="66" viewBox="0 0 64 64"><g fill="none" stroke="#1d1d1f" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 32c8-10 16-15 24-15s16 5 24 15c-8 10-16 15-24 15s-16-5-24-15z"/><circle cx="32" cy="32" r="7"/></g></svg>
+    </div>
+    <h1>Blindspot</h1>
+    <div class="tagline">Find what others miss.</div>
+    <p class="sub">An <strong>On-device</strong> static analysis platform for Android APKs. Upload an APK and Blindspot decompiles it, runs <strong>200 security checks</strong>, cross-verifies every finding across three engines, and lets a <strong>local AI model</strong> review the code, all on your own machine. <strong>Your APK never leaves your computer.</strong></p>
+    <div class="stats">
+      <div class="stat"><div class="n">200</div><div class="l">Detection rules</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">Analysis engines</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">Pipeline stages</div></div>
+      <div class="stat"><div class="n">542</div><div class="l">Automated tests</div></div>
+      <div class="stat"><div class="n">100%</div><div class="l">On-device, offline AI</div></div>
+    </div>
+    <div style="margin-top:34px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a class="btn" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener">
+        <svg width="19" height="19" viewBox="0 0 16 16" fill="#ffffff" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        View the tool on GitHub
+      </a>
+      <a class="btn ghost" href="#pipeline">How it works</a>
+    </div>
+    <div class="credit">Designed and built by <a href="https://github.com/Shuuubhraj">@shuuubhraj</a> &nbsp;·&nbsp; Open source at <a href="https://github.com/Shuuubhraj/blindspot">github.com/Shuuubhraj/blindspot</a></div>
+  </div>
+</header>
+
+<section id="about">
+  <div class="wrap">
+    <div class="kicker">About the tool</div>
+    <h2>Why Blindspot exists</h2>
+    <p class="lead">Every Android security tester knows the problem. The fast way to check an APK is to upload it to a cloud scanner, but that means <strong>handing a client's app, sometimes unreleased, sometimes full of secrets, to a stranger's server</strong>. The safe way is manual review, but reading thousands of lines of decompiled code by hand is slow and easy to get wrong.</p>
+    <p class="body">Blindspot is the third option: a full security assessment platform that runs <strong>entirely on your own machine</strong>. The name is the point. Every scanner has blind spots: patterns it does not check, code it skips, findings it reports once and never verifies. Blindspot attacks those blind spots three ways: a large hand-written rule set, a second independent scanning engine, and a local AI reviewer that reads the code the rules cannot judge. Where the engines agree, confidence goes up. Where only one engine sees something, it is labelled honestly as unverified instead of being dressed up as fact.</p>
+    <div class="grid g3">
+      <div class="card"><span class="ic">🔒</span><h3>Private by architecture</h3><p>There is no cloud component at all. The APK, the decompiled source, the findings and even the AI model stay on the local machine. It works fully offline once set up, which makes it safe for client apps and internal builds.</p></div>
+      <div class="card"><span class="ic">🎯</span><h3>Evidence, never guesses</h3><p>Every finding points to a real file and a real line number in the decompiled code, with the exact snippet attached. If a location cannot be verified, the finding says so. Line numbers are never invented.</p></div>
+      <div class="card"><span class="ic">📋</span><h3>Reports a client can read</h3><p>Each scan produces a full HTML, PDF or JSON report mapped to the OWASP Mobile Top 10, MASVS and CWE, with severity, confidence and remediation for every issue.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <div class="kicker">Technology</div>
+    <h2>What it is built with</h2>
+    <p class="lead">Two languages do almost all the work: <strong>Python</strong> for the analysis backend and <strong>TypeScript</strong> for the web console. Everything else is a specialised tool plugged into the pipeline.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Backend: Python 3.12</h3>
+        <ul class="tight">
+          <li><strong>FastAPI + Uvicorn</strong> for the REST API and live progress streaming</li>
+          <li><strong>SQLAlchemy 2 + SQLite</strong> for scan history and findings storage</li>
+          <li><strong>Pydantic 2</strong> for request and configuration validation</li>
+          <li><strong>Typer</strong> for the <code>blindspot</code> command line interface</li>
+          <li><strong>ReportLab + Jinja2</strong> to generate the PDF and HTML reports</li>
+          <li><strong>pytest</strong> test suite: 542 tests (524 unit + 18 integration), all green</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Frontend: React + TypeScript</h3>
+        <ul class="tight">
+          <li><strong>React 18 + TypeScript</strong>, built with <strong>Vite</strong></li>
+          <li><strong>Tailwind CSS</strong> for the console styling, light and dark modes</li>
+          <li>Live scan dashboard fed by <strong>Server-Sent Events</strong>, so you watch each pipeline stage happen in real time</li>
+          <li>The built frontend is served by the FastAPI backend itself, so the whole tool is one process on <code>localhost:8000</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Analysis tools it drives</h3>
+        <ul class="tight">
+          <li><strong>JADX 1.5.6</strong> decompiles the DEX bytecode back to readable Java source</li>
+          <li><strong>apktool 3.0.3</strong> decodes resources, Smali and the manifest</li>
+          <li><strong>MobSFScan</strong> runs as a second, independent rule engine</li>
+          <li><strong>androguard</strong> (optional) enriches APK metadata</li>
+          <li>A <strong>custom binary XML parser</strong> written for Blindspot reads the manifest directly, so metadata works even before decompilation</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>AI: fully local</h3>
+        <ul class="tight">
+          <li><strong>Ollama</strong> serves the model on <code>localhost:11434</code></li>
+          <li>Model: <strong>qwen2.5-coder:7b</strong>, a code-specialised open model, about 4.7 GB</li>
+          <li>The backend talks to Ollama over plain HTTP with <strong>httpx</strong>; no API keys, no cloud calls, no cost per scan</li>
+          <li>If Ollama is not running, scans still work: the AI stages simply report themselves as unavailable</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <div class="wrap">
+    <div class="kicker">Under the hood</div>
+    <h2>How an APK gets tested: the 9-stage pipeline</h2>
+    <p class="lead">When you upload an APK, it moves through nine stages in a fixed order. Each stage streams live progress to the dashboard, a scan can be cancelled at any point, and if a scan fails or is cancelled its workspace is cleaned up automatically. Here is exactly what happens at each step.</p>
+
+    <div class="pipe">
+      <div class="stage"><div class="num">1</div><div class="sc">
+        <h3>Validate <span class="tag">Input safety</span></h3>
+        <p>The uploaded file is checked before anything touches it: is it really an APK (a ZIP with an Android structure), is it within size limits, is the archive intact? Its <strong>SHA-256 fingerprint</strong> is calculated here, which is the identity printed on every report.</p>
+      </div></div>
+      <div class="stage"><div class="num">2</div><div class="sc">
+        <h3>Extract <span class="tag">Isolated workspace</span></h3>
+        <p>The APK is unpacked into its own private workspace folder: the DEX files, resources, native libraries (<code>.so</code> files), assets and the binary manifest. Every scan gets an isolated workspace, so scans never contaminate each other.</p>
+      </div></div>
+      <div class="stage"><div class="num">3</div><div class="sc">
+        <h3>Metadata <span class="tag">Own AXML parser</span></h3>
+        <p>The manifest inside an APK is <strong>binary XML</strong>, not readable text. Blindspot parses it with its own binary XML (AXML) decoder written for this project: package name, app label, version, min and target SDK, the full permission list, exported activities, services, receivers and providers, and flags like <code>debuggable</code>, <code>allowBackup</code> and cleartext traffic. This structured manifest is what the manifest rules and several other stages reason about.</p>
+      </div></div>
+      <div class="stage"><div class="num">4</div><div class="sc">
+        <h3>Decompile <span class="tag">JADX + apktool</span></h3>
+        <p>Two decompilers run in parallel. <strong>JADX</strong> turns the DEX bytecode back into Java source code that a human (and the AI) can read. <strong>apktool</strong> decodes the resources, the layout XML and the manifest into text form and disassembles to Smali. If one tool is missing the pipeline degrades gracefully and says so, instead of crashing.</p>
+      </div></div>
+      <div class="stage"><div class="num">5</div><div class="sc">
+        <h3>External scanners <span class="tag green">Engine 2</span></h3>
+        <p><strong>MobSFScan</strong>, a well known open source mobile scanner, runs over the decompiled source with its own independent rule set. It is the second opinion: it knows nothing about Blindspot's rules, which is exactly what makes agreement between them meaningful later. Its rule set is vendored into the repo so it works offline.</p>
+      </div></div>
+      <div class="stage"><div class="num">6</div><div class="sc">
+        <h3>Blindspot rules <span class="tag">Engine 1 · 200 checks</span></h3>
+        <p>Now the core of the tool runs: all <strong>200 hand-written detection rules</strong> execute against the manifest, the Java source, the resources and the native libraries. Each rule answers with one of a fixed set of verdicts: <strong>finding</strong>, <strong>pass</strong>, <strong>needs review</strong>, <strong>not applicable</strong> or <strong>error</strong>, and every finding carries evidence with the real file path and line number.</p>
+      </div></div>
+      <div class="stage"><div class="num">7</div><div class="sc">
+        <h3>AI review <span class="tag violet">Engine 3 · local LLM</span></h3>
+        <p>The local AI model reads the most security-sensitive parts of the code and hunts for issues the patterns cannot express: business logic flaws, broken access control, unsafe data flows. Every claim it makes is machine-verified before it is accepted. This stage is optional per scan and detailed in its own section below.</p>
+      </div></div>
+      <div class="stage"><div class="num">8</div><div class="sc">
+        <h3>Normalize <span class="tag">Cross-check</span></h3>
+        <p>Findings from all three engines are merged. Duplicates pointing at the <strong>same file and line</strong> collapse into one finding that keeps the full list of which engines reported it (its provenance). When two different engines independently agree on the same location, the finding's <strong>confidence is automatically raised one level</strong>, with the reason written into the finding itself.</p>
+      </div></div>
+      <div class="stage"><div class="num">9</div><div class="sc">
+        <h3>Finalize <span class="tag">Persist + report</span></h3>
+        <p>The scan, its findings and the engine statistics are saved to the local SQLite database, the scan appears in the history, and the HTML, PDF and JSON reports become available for download.</p>
+      </div></div>
+    </div>
+
+    <div class="flow">
+      <span class="box">APK upload</span><span class="arr">→</span>
+      <span class="box">Validate</span><span class="arr">→</span>
+      <span class="box">Extract</span><span class="arr">→</span>
+      <span class="box">Metadata</span><span class="arr">→</span>
+      <span class="box">Decompile</span><span class="arr">→</span>
+      <span class="box">MobSFScan</span><span class="arr">→</span>
+      <span class="box">200 rules</span><span class="arr">→</span>
+      <span class="box">AI review</span><span class="arr">→</span>
+      <span class="box">Cross-check</span><span class="arr">→</span>
+      <span class="box">Reports</span>
+    </div>
+  </div>
+</section>
+
+<section id="rules">
+  <div class="wrap">
+    <div class="kicker">Engine 1</div>
+    <h2>The 200 checks, by category</h2>
+    <p class="lead">The rules are the meal; everything else is support. Each rule is a small, focused Python class with one job, its own positive and negative unit tests, and mappings to the <strong>OWASP Mobile Top 10</strong>, <strong>MASVS</strong> and <strong>CWE</strong>. A rule must cite real evidence at a real line number or it does not fire.</p>
+    <div class="rules">
+      <div class="rule"><div class="top"><span class="cnt">35</span><span class="pfx">BS-N01 to N35</span></div><h3>Network</h3><p>Cleartext HTTP, weak TLS, trust-all certificate managers, broken hostname verification, missing certificate pinning, insecure WebSockets, hardcoded proxies and IPs, sensitive data in URL query strings.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">30</span><span class="pfx">BS-W01 to W30</span></div><h3>WebView</h3><p>JavaScript bridges exposed to remote content, file access from web pages, universal access from file URLs, mixed content, SSL errors silently proceeded past, JavaScript enabled on exported activities.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">25</span><span class="pfx">BS-S01 to S25</span></div><h3>Storage and privacy</h3><p>Secrets in SharedPreferences, world-readable files, sensitive data on external storage, clipboard and log leakage, Auto Backup with no exclusion rules, Keystore keys with randomized encryption disabled.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">20</span><span class="pfx">BS-M01 to M20</span></div><h3>Manifest</h3><p>Debuggable builds, exported components without permissions, dangerous permissions, backup flags, deep link schemes, task affinity and strandHogg-style risks, min SDK problems.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">20</span><span class="pfx">BS-P01 to P20</span></div><h3>Platform and IPC</h3><p>Intent injection, pending intent mutability, broadcast theft, content provider exposure, path traversal in providers, root and tamper handling, insecure IPC patterns.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">20</span><span class="pfx">BS-X01 to X20</span></div><h3>Hardcoded secrets</h3><p>AWS, Google, Stripe, Slack, GitHub, Firebase, Twilio and SendGrid keys, JWTs, PEM private keys, keystore passwords, OAuth client secrets, credentials baked into URLs, secrets in manifest meta-data and Gradle files.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">20</span><span class="pfx">BS-D01 to D20</span></div><h3>Supply chain and SDKs</h3><p>Advertising, analytics, crash reporting and payment SDK fingerprinting, known vulnerable library versions, obfuscation and packer detection, Flutter, React Native, Cordova, Unity and Xamarin detection, tracker census.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">15</span><span class="pfx">BS-C01 to C15</span></div><h3>Cryptography</h3><p>DES, ECB mode, static IVs, MD5 and SHA1 for security, weak random number generators, hardcoded encryption keys, custom crypto implementations.</p></div>
+      <div class="rule"><div class="top"><span class="cnt">15</span><span class="pfx">BS-A01 to A15</span></div><h3>Authentication</h3><p>Biometrics without a CryptoObject, OAuth implicit flow, tokens passed in URLs, hardcoded test accounts, lockscreen fallbacks, broken session handling.</p></div>
+    </div>
+    <div class="callout">
+      <h3>Why hand-written rules instead of only using an existing scanner?</h3>
+      <p>Existing scanners are good, but their checks are generic and their misses are silent. Writing the rules myself meant every check could be tuned for accuracy, given a plain-English rationale and remediation, and tested against both a vulnerable and a clean code sample. It also means the tool's coverage is fully known: 200 named checks, each one auditable in the source.</p>
+    </div>
+  </div>
+</section>
+
+<section id="engines">
+  <div class="wrap">
+    <div class="kicker">Verification</div>
+    <h2>Three engines, cross-checked</h2>
+    <p class="lead">A single scanner reporting a bug is a claim. Two independent tools reporting the <strong>same bug at the same line</strong> is evidence. Blindspot is built around that difference.</p>
+    <div class="grid g3">
+      <div class="card"><span class="ic">🧭</span><h3>Engine 1: Blindspot rules</h3><p>The 200 hand-written checks. Deterministic, fast, explainable. This engine does the bulk of the work in every scan.</p></div>
+      <div class="card"><span class="ic">🔍</span><h3>Engine 2: MobSFScan</h3><p>An established third-party scanner with a completely separate rule set and authors. It has never seen Blindspot's rules, so its agreement is independent.</p></div>
+      <div class="card"><span class="ic">🤖</span><h3>Engine 3: the AI reviewer</h3><p>A local language model that reads code semantically. Slow and probabilistic, so it is used where judgement is needed, and everything it claims is verified.</p></div>
+    </div>
+    <ul class="tight">
+      <li><strong>Exact-location merge:</strong> if two engines flag the same file and the same line, the findings merge into one. Nothing is double counted.</li>
+      <li><strong>Provenance is kept:</strong> the merged finding records every engine that reported it, so you can always see who said what.</li>
+      <li><strong>Confidence bump:</strong> when a genuinely different engine corroborates a finding at the same location, its confidence rises one level (for example medium to high) and the reason is written into the finding's confidence rationale.</li>
+      <li><strong>Honest single-source findings:</strong> if only one engine sees an issue, it stays at its original confidence. The tool never inflates a lone claim.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ai">
+  <div class="wrap">
+    <div class="kicker">Engine 3</div>
+    <h2>The AI reviewer: how it actually works</h2>
+    <p class="lead">The AI is a <strong>local large language model</strong> (qwen2.5-coder:7b, a code-specialised model) served by <strong>Ollama</strong> on the same machine. It never replaces the rules. It does the roughly 5 percent of the work that patterns cannot: reading code for meaning.</p>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>Step 1: Picking what to read</h3>
+        <p>Reading a whole decompiled app would take hours and waste the model's attention. Instead, Blindspot scores every source file with weighted patterns (authentication, crypto, network, storage, WebView and token handling score high), <strong>excludes third-party library code</strong>, prioritises the app's own package, and within those files extracts <strong>targeted snippets</strong>: merged windows of about 35 lines around each suspicious region. Snippet mode is 3 to 4 times faster than whole-file review and gives the model sharper focus.</p>
+      </div>
+      <div class="card">
+        <h3>Step 2: Asking, one unit at a time</h3>
+        <p>Each file or snippet group gets its own prompt and its own timeout (300 seconds), so one slow file can never kill the whole review. The prompt demands a strict JSON answer: issue, severity, file, line numbers and the <strong>exact code snippet</strong> as proof. Output length is capped (about 3000 tokens) and the context window is set to 8192 tokens, which keeps a 7B model on a normal laptop CPU practical.</p>
+      </div>
+      <div class="card">
+        <h3>Step 3: Verifying every claim</h3>
+        <p>This is the part that makes the AI trustworthy. Before any AI finding is accepted, the backend checks it against the real code: <strong>does the file exist in the workspace, do the line numbers fall in range, and does the quoted snippet match the real code word for word?</strong> Findings that pass are labelled <span class="pill blue">ai-evidence-supported</span>. Findings that fail the check are still stored, but honestly labelled <span class="pill amber">ai-unverified</span>.</p>
+      </div>
+      <div class="card">
+        <h3>Step 4: Corroborate or stand alone</h3>
+        <p>If the AI independently flags the same code a rule already found (within 3 lines), the finding is marked <span class="pill green">ai-corroborated</span> and its confidence reflects the agreement. If the AI finds something no rule caught, it is stored as an AI-sourced finding with its own label. It is never silently promoted to look like a rule finding.</p>
+      </div>
+    </div>
+
+    <ul class="tight">
+      <li><strong>Hallucination controls:</strong> verbatim snippet verification, line range checks, structured JSON validation, and output sanitisation (stray formatting and invented identifiers are stripped on ingest).</li>
+      <li><strong>The AI is advisory:</strong> it can add findings and raise confidence. It cannot delete a rule finding or lower a severity.</li>
+      <li><strong>Fully optional:</strong> AI review is a per-scan toggle with a model name field. No Ollama, no problem: the rest of the pipeline is unaffected.</li>
+      <li><strong>Scan-level summary:</strong> every scan records which model ran, how many files and snippets it reviewed, and how many of its proposals were accepted versus rejected by verification.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="buttons">
+  <div class="wrap">
+    <div class="kicker">On-demand AI</div>
+    <h2>The AI Verify and AI Fix buttons</h2>
+    <p class="lead">Inside the findings explorer, every single finding has two AI buttons. They run the local model on demand (180 second timeout), only when you ask, so they cost nothing during the scan itself.</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3>✓ AI Verify: "is this real?"</h3>
+        <p>The model is shown the finding and the actual code around it, and must return a verdict with reasoning. The verdict is saved onto the finding itself, so it survives reloads and appears in the interface as a pill:</p>
+        <p style="margin-top:12px"><span class="pill green">true positive</span> the issue is real &nbsp; <span class="pill red">false positive</span> the code is actually safe &nbsp; <span class="pill amber">uncertain</span> needs a human call</p>
+        <p style="margin-top:12px">A true-positive verdict marks the finding <strong>ai-corroborated</strong>; a false-positive verdict marks it <strong>ai-disputed</strong>. The original rule finding is never edited or hidden either way. The human stays the judge.</p>
+      </div>
+      <div class="card">
+        <h3>✦ AI Fix: "show me the patch"</h3>
+        <p>The model writes a corrected version of the exact vulnerable snippet, with a short explanation of what changed and any caveats (for example, a minimum SDK requirement). It appears in a code block with a one-click <strong>Copy fix</strong> button.</p>
+        <p style="margin-top:12px">The fix is stored in the finding's provenance alongside the model name, and it <strong>never overwrites the rule's own remediation guidance</strong>. You get both: the curated advice and the model-written patch.</p>
+      </div>
+    </div>
+    <div class="callout">
+      <h3>Why on-demand instead of automatic?</h3>
+      <p>A 7B model on a laptop CPU takes real time per call. Running it on all 30 findings of a scan automatically would make triage slower, not faster. Buttons put the cost exactly where the value is: the findings you are actually unsure about.</p>
+    </div>
+  </div>
+</section>
+
+<section id="reports">
+  <div class="wrap">
+    <div class="kicker">Output</div>
+    <h2>Reports and data</h2>
+    <div class="grid g3">
+      <div class="card"><h3>HTML report</h3><p>A self-contained, shareable report: cover with app name, package, version, SDK levels, file size and SHA-256, an executive summary, a severity breakdown, an OWASP Mobile Top 10 coverage table, a dedicated AI review section and one full section per finding with evidence, rationale and remediation.</p></div>
+      <div class="card"><h3>PDF report</h3><p>The same content rendered with ReportLab, one finding per page, built for sending to clients and attaching to assessment deliverables. Pure Python generation, so it works on any machine with no extra system libraries.</p></div>
+      <div class="card"><h3>JSON export</h3><p>The complete machine-readable scan: every finding with engine provenance, confidence history and AI verdicts, ready to feed into other tooling or a dashboard.</p></div>
+    </div>
+    <ul class="tight">
+      <li><strong>Storage:</strong> everything lives in one local folder (<code>backend/blindspot/data</code>): a SQLite database plus per-scan workspaces and uploads. Backing up the tool is copying one folder.</li>
+      <li><strong>Interfaces:</strong> the web console, the REST API, and the <code>blindspot</code> CLI (Typer), which can run scans and start the server from the terminal.</li>
+      <li><strong>Quality bar:</strong> 542 automated tests (524 unit + 18 integration) cover the rules, the manifest parser, the AI selection and verification logic, the cross-engine merge and the API endpoints.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="interview">
+  <div class="wrap">
+    <div class="kicker">Interview prep</div>
+    <h2>Likely questions, answered the way you would say them</h2>
+    <p class="lead">Short, first-person answers. Read them once, then say them in your own words.</p>
+
+    <div class="qa"><div class="q">How did you build this tool?</div><div class="a">"I built it in <strong>Python</strong> with a <strong>FastAPI</strong> backend and a <strong>React and TypeScript</strong> frontend. The flow is a pipeline: the APK is validated, extracted, its manifest is parsed, then <strong>JADX and apktool</strong> decompile it. After that three engines analyse the code: my own <strong>200 hand-written rules</strong>, <strong>MobSFScan</strong> as an independent second engine, and a <strong>local AI model</strong> through Ollama. The results are cross-checked against each other, stored in SQLite, and exported as HTML, PDF and JSON reports."</div></div>
+
+    <div class="qa"><div class="q">Why did you build it? What problem does it solve?</div><div class="a">"As a tester I did not want to upload client APKs to cloud scanners, that is a confidentiality problem. And manual review of decompiled code is slow. So I built a scanner that runs <strong>completely on-device</strong>, including the AI. Nothing leaves the machine, and it works offline."</div></div>
+
+    <div class="qa"><div class="q">How does it test an APK, technically?</div><div class="a">"It is <strong>static analysis</strong>, the app is never run. I parse the binary manifest with my own AXML parser, decompile DEX to Java with JADX, then run pattern and data-flow checks over the manifest, source, resources and native libraries. Every finding has to cite a real file and line number as evidence."</div></div>
+
+    <div class="qa"><div class="q">What are the 200 checks?</div><div class="a">"They are grouped in nine categories: network is the biggest with 35, WebView 30, storage 25, then manifest, platform, secrets and supply chain at 20 each, crypto and authentication at 15 each. Every rule is a small Python class with its own unit tests, and each maps to <strong>OWASP Mobile Top 10, MASVS and CWE</strong>."</div></div>
+
+    <div class="qa"><div class="q">How does the AI part work?</div><div class="a">"Ollama serves a code model, <strong>qwen2.5-coder:7b</strong>, locally. Blindspot scores the files, skips library code, and sends the model <strong>targeted snippets</strong> around suspicious code instead of whole files, which is three to four times faster. The model must reply in strict JSON with the file, line and the exact code snippet as proof."</div></div>
+
+    <div class="qa"><div class="q">AI models hallucinate. How do you handle that?</div><div class="a">"I do not trust the model, I verify it. Before an AI finding is accepted, the backend checks the file exists, the line numbers are in range, and the quoted snippet matches the real code <strong>word for word</strong>. If the check fails, the finding is labelled unverified, not deleted and not dressed up. The AI can corroborate a rule finding, but it can never remove one."</div></div>
+
+    <div class="qa"><div class="q">What do the AI Verify and AI Fix buttons do?</div><div class="a">"They are on-demand, per finding. <strong>Verify</strong> asks the model to judge one finding against the real code and saves a true positive, false positive or uncertain verdict on it. <strong>Fix</strong> makes the model write a corrected version of the exact vulnerable snippet, with an explanation and caveats. I kept them on-demand because running a 7B model on every finding automatically would slow triage down."</div></div>
+
+    <div class="qa"><div class="q">Why three engines? Why not just use MobSF?</div><div class="a">"Because agreement is signal. If my rules and MobSFScan independently flag the <strong>same file and line</strong>, Blindspot merges them and raises the confidence automatically, with the reason recorded. A single tool's finding is a claim; two tools agreeing is evidence. And my own rules cover things generic scanners miss, like hardcoded secrets in Gradle files and SDK supply-chain risks."</div></div>
+
+    <div class="qa"><div class="q">What was the hardest part?</div><div class="a">"Two things. First, the manifest inside an APK is <strong>binary XML</strong>, so I had to write my own AXML parser to read it reliably. Second, making the AI fast and honest on a normal laptop CPU: snippet targeting for speed, and the verification layer so I could trust what it reports."</div></div>
+
+    <div class="qa"><div class="q">How do you know the tool itself is correct?</div><div class="a">"There are <strong>542 automated tests</strong>. Every rule has a vulnerable sample it must catch and a clean sample it must pass, and there are tests for the manifest parser, the cross-engine merge and the AI verification logic. If a change breaks a check, the suite says so immediately."</div></div>
+  </div>
+</section>
+
+<section id="author">
+  <div class="wrap">
+    <div class="kicker">Author</div>
+    <h2>About the author</h2>
+    <div class="card" style="margin-top:22px">
+      <h3 style="font-size:20px">Rajput Shubhraj Singh</h3>
+      <p style="margin-top:4px;color:var(--blue);font-weight:600;font-size:15px">Information Security Consultant · API, Mobile and Web Application Security Testing</p>
+      <p style="margin-top:14px">Shubhraj is a security tester who specialises in API, mobile and web application penetration testing. He is currently deployed with <strong style="color:var(--text)">ICICI Bank</strong> through <strong style="color:var(--text)">qSEAp</strong>, where he performs manual security testing of banking applications. He holds the <strong style="color:var(--text)">CRTP (Certified Red Team Professional)</strong> certification from Altered Security, and he has reported a security vulnerability to <strong style="color:var(--text)">Yahoo through HackerOne</strong> (CVSS 4.3, Medium severity).</p>
+      <p style="margin-top:12px">Blindspot grew out of his own day-to-day testing work. He wanted a scanner he could point at a client APK without uploading it to anyone's cloud, with checks he could audit himself and an AI reviewer that shows its evidence. So he built one.</p>
+      <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
+        <a class="btn" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener">Blindspot on GitHub</a>
+        <a class="btn ghost" href="https://github.com/Shuuubhraj" target="_blank" rel="noopener">GitHub profile</a>
+        <a class="btn ghost" href="https://hackerone.com/shubhraj" target="_blank" rel="noopener">HackerOne</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="flogo">
+      <svg width="34" height="34" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#ffffff"/><g fill="none" stroke="#1d1d1f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 32c8-10 16-15 24-15s16 5 24 15c-8 10-16 15-24 15s-16-5-24-15z"/><circle cx="32" cy="32" r="7"/></g></svg>
+    </div>
+    Blindspot · Find what others miss.<br>
+    On-device Android APK security assessment · Built by <a href="https://github.com/Shuuubhraj">@shuuubhraj</a> · <a href="https://github.com/Shuuubhraj/blindspot">github.com/Shuuubhraj/blindspot</a>
+  </div>
+</footer>
+
+</body>
+</html>
