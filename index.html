@@ -154,6 +154,62 @@
 
   footer{margin-top:76px;border-top:1px solid var(--line);padding:34px 0 46px;text-align:center;color:var(--text-faint);font-size:14px}
   footer .flogo{display:flex;justify-content:center;margin-bottom:12px}
+
+  /* ---------- badges ---------- */
+  .badges{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:28px}
+  .badge{font-size:13.5px;font-weight:700;color:#dceeff;background:rgba(0,113,227,.13);border:1px solid rgba(0,113,227,.45);padding:7px 16px;border-radius:999px}
+  .badge.green{color:#c9f5d6;background:rgba(48,209,88,.1);border-color:rgba(48,209,88,.4)}
+
+  /* ---------- scroll reveal + hover ---------- */
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease}
+  .reveal.in{opacity:1;transform:none}
+  .card{transition:transform .3s ease,border-color .3s ease}
+  .card:hover{transform:translateY(-3px);border-color:rgba(0,113,227,.45)}
+  .hero .logo-badge{animation:floaty 5s ease-in-out infinite}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+  /* ---------- marquee ---------- */
+  .marquee{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:54px;padding:13px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent);mask-image:linear-gradient(90deg,transparent,#000 10%,#000 90%,transparent)}
+  .marquee-track{display:flex;gap:42px;width:max-content;animation:mq 38s linear infinite;color:var(--text-faint);font-size:13.5px;font-weight:600;white-space:nowrap}
+  @keyframes mq{to{transform:translateX(-50%)}}
+
+  /* ---------- animated demo ---------- */
+  .demo{margin-top:30px;background:#0d0d10;border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);text-align:left}
+  .demo-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;background:#161617;border-bottom:1px solid var(--line)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .demo-title{margin-left:8px;font-size:13px;color:var(--text-dim);font-family:ui-monospace,Menlo,monospace}
+  .demo-progress{height:6px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin:18px 20px 0}
+  .demo-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--violet));border-radius:99px;transition:width .6s ease}
+  .demo-body{padding:18px 20px 22px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:760px){.demo-body{grid-template-columns:1fr}}
+  .dstage{display:flex;align-items:center;gap:11px;padding:7px 10px;border-radius:10px;color:var(--text-faint);font-size:14.5px;transition:background .35s ease,color .35s ease}
+  .dstage .st-ic{width:22px;height:22px;flex:0 0 22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:12px;color:transparent}
+  .dstage.active{color:#fff;background:rgba(0,113,227,.13)}
+  .dstage.active .st-ic{border-color:var(--blue);border-top-color:transparent;animation:spin .7s linear infinite}
+  .dstage.done{color:var(--text-dim)}
+  .dstage.done .st-ic{border-color:var(--emerald);color:var(--emerald);animation:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .demo-side{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .demo-feed{font-family:ui-monospace,Menlo,monospace;font-size:12.8px;color:var(--text-dim);line-height:1.95;min-height:196px}
+  .demo-feed .f-ai{color:#cf9fff}.demo-feed .f-ok{color:#7ee2a0}.demo-feed .f-warn{color:#ffe27a}
+  .demo-feed div{animation:feedin .4s ease}
+  @keyframes feedin{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+  .demo-verdict{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;opacity:0;transform:scale(.92);transition:all .45s ease}
+  .demo-verdict.show{opacity:1;transform:none}
+
+  /* ---------- mobile nav: no sideways scroll ---------- */
+  @media(max-width:760px){
+    nav .wrap{overflow:visible;justify-content:space-between;gap:4px}
+    nav a.nl{display:none}
+    nav a.nl.github-link{display:block}
+    nav .brand{margin-right:0}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .reveal{opacity:1;transform:none;transition:none}
+    .marquee-track{animation:none}
+    .hero .logo-badge{animation:none}
+    .dstage.active .st-ic{animation:none}
+  }
 </style>
 </head>
 <body>
@@ -164,6 +220,7 @@
       <svg width="24" height="24" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#ffffff"/><g fill="none" stroke="#1d1d1f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 32c8-10 16-15 24-15s16 5 24 15c-8 10-16 15-24 15s-16-5-24-15z"/><circle cx="32" cy="32" r="7"/></g></svg>
       Blindspot
     </span>
+    <a class="nl" href="#demo">Live Demo</a>
     <a class="nl" href="#about">About</a>
     <a class="nl" href="#stack">Tech Stack</a>
     <a class="nl" href="#pipeline">Pipeline</a>
@@ -174,7 +231,7 @@
     <a class="nl" href="#reports">Reports</a>
     <a class="nl" href="#interview">Interview Q and A</a>
     <a class="nl" href="#author">Author</a>
-    <a class="nl" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener" style="color:#fff;font-weight:700">GitHub ↗</a>
+    <a class="nl github-link" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener" style="color:#fff;font-weight:700">GitHub ↗</a>
   </div>
 </nav>
 
@@ -186,6 +243,12 @@
     <h1>Blindspot</h1>
     <div class="tagline">Find what others miss.</div>
     <p class="sub">An <strong>On-device</strong> static analysis platform for Android APKs. Upload an APK and Blindspot decompiles it, runs <strong>200 security checks</strong>, cross-verifies every finding across three engines, and lets a <strong>local AI model</strong> review the code, all on your own machine. <strong>Your APK never leaves your computer.</strong></p>
+    <div class="badges">
+      <span class="badge">Without Internet</span>
+      <span class="badge">No AI Cost</span>
+      <span class="badge">No Cloud Services</span>
+      <span class="badge green">Everything runs locally</span>
+    </div>
     <div class="stats">
       <div class="stat"><div class="n">200</div><div class="l">Detection rules</div></div>
       <div class="stat"><div class="n">3</div><div class="l">Analysis engines</div></div>
@@ -204,6 +267,37 @@
   </div>
 </header>
 
+
+<section id="demo" style="padding-top:8px">
+  <div class="wrap">
+    <div class="marquee"><div class="marquee-track" id="mqTrack"></div></div>
+    <div style="margin-top:56px">
+      <div class="kicker">See it in action</div>
+      <h2>Watch a scan happen</h2>
+      <p class="lead">This is exactly what Blindspot does with every APK, animated. Nine stages, three engines, one verified report, all on your own machine.</p>
+    </div>
+    <div class="demo">
+      <div class="demo-bar">
+        <span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span>
+        <span class="demo-title">blindspot · live scan · app.apk</span>
+      </div>
+      <div class="demo-progress"><i id="demoBar"></i></div>
+      <div class="demo-body">
+        <div id="demoStages"></div>
+        <div class="demo-side">
+          <div class="demo-feed" id="demoFeed"></div>
+          <div class="demo-verdict" id="demoVerdict">
+            <span class="pill red">4 critical and high</span>
+            <span class="pill blue">32 findings</span>
+            <span class="pill green">AI corroborated x5</span>
+            <span class="pill violet">Reports ready</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="about">
   <div class="wrap">
     <div class="kicker">About the tool</div>
@@ -214,6 +308,19 @@
       <div class="card"><span class="ic">🔒</span><h3>Private by architecture</h3><p>There is no cloud component at all. The APK, the decompiled source, the findings and even the AI model stay on the local machine. It works fully offline once set up, which makes it safe for client apps and internal builds.</p></div>
       <div class="card"><span class="ic">🎯</span><h3>Evidence, never guesses</h3><p>Every finding points to a real file and a real line number in the decompiled code, with the exact snippet attached. If a location cannot be verified, the finding says so. Line numbers are never invented.</p></div>
       <div class="card"><span class="ic">📋</span><h3>Reports a client can read</h3><p>Each scan produces a full HTML, PDF or JSON report mapped to the OWASP Mobile Top 10, MASVS and CWE, with severity, confidence and remediation for every issue.</p></div>
+    </div>
+  </div>
+</section>
+
+
+<section id="local">
+  <div class="wrap">
+    <div class="kicker">The local promise</div>
+    <h2>No internet. No bills. No cloud.</h2>
+    <div class="grid g3">
+      <div class="card"><h3>Without Internet</h3><p>After setup, Blindspot works fully offline. Scan client APKs on a plane, in a secure lab, anywhere. Nothing needs to phone home, ever.</p></div>
+      <div class="card"><h3>No AI Cost</h3><p>The AI reviewer is an open model running on your own hardware through Ollama. No API keys, no subscriptions, no per-scan bills. Review a thousand findings, it still costs zero.</p></div>
+      <div class="card"><h3>No Cloud Services</h3><p>There is no Blindspot server. No uploads, no accounts, no telemetry. Your APKs, your source code and your reports stay on your disk, under your control.</p></div>
     </div>
   </div>
 </section>
@@ -501,5 +608,81 @@
   </div>
 </footer>
 
+
+<script>
+// Marquee content: a taste of the 200 checks
+(function(){
+  var items = ["BS-N01 Cleartext traffic","BS-X04 Stripe live key","BS-W07 JavaScript bridge","BS-M01 Debuggable build","BS-C03 ECB mode","BS-S10 Secrets in logs","BS-D12 Tracker SDK census","BS-A02 Hardcoded bypass","BS-P05 Intent injection","BS-N24 No certificate pinning","BS-X09 Private key in code","BS-W16 File access from web"];
+  var html = items.map(function(t){return "<span>" + t + "</span><span style='color:#0071e3'>•</span>";}).join("");
+  document.getElementById("mqTrack").innerHTML = html + html;
+})();
+// Scroll reveal
+(function(){
+  var els = document.querySelectorAll(".card,.stage,.rule,.qa,.stat,.callout,.demo");
+  els.forEach(function(el,i){ el.classList.add("reveal"); el.style.transitionDelay = (i % 4) * 60 + "ms"; });
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } }); },{threshold:.12});
+  els.forEach(function(el){ io.observe(el); });
+})();
+// Count-up stats
+(function(){
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){
+    if(!e.isIntersecting) return; io.unobserve(e.target);
+    var el = e.target, txt = el.textContent, m = txt.match(/\d+/); if(!m) return;
+    var target = parseInt(m[0],10), suffix = txt.replace(/[\d,]/g,""), t0 = null;
+    function step(ts){ if(!t0) t0 = ts; var p = Math.min((ts - t0)/1100, 1); el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3))) + suffix; if(p < 1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  }); },{threshold:.4});
+  document.querySelectorAll(".stat .n").forEach(function(el){ io.observe(el); });
+})();
+// Animated scan demo
+(function(){
+  var stages = [
+    ["Validate","app.apk received · SHA-256 fingerprint taken",""],
+    ["Extract","Workspace created · DEX, resources and native libs unpacked",""],
+    ["Metadata","Manifest parsed · 23 permissions · 14 exported components",""],
+    ["Decompile","JADX and apktool finished · readable Java source ready",""],
+    ["MobSFScan","Second engine finished · 11 matches",""],
+    ["200 Blindspot rules","Rules executed · 27 findings with file and line evidence","f-warn"],
+    ["AI review","AI read 12 targeted snippets · 3 new issues · 5 corroborated","f-ai"],
+    ["Cross-check","Engines compared · 4 duplicates merged · confidence raised",""],
+    ["Finalize","Scan saved · HTML, PDF and JSON reports ready","f-ok"]
+  ];
+  var wrap = document.getElementById("demoStages"), feed = document.getElementById("demoFeed"),
+      bar = document.getElementById("demoBar"), verdict = document.getElementById("demoVerdict");
+  wrap.innerHTML = stages.map(function(s){ return '<div class="dstage"><span class="st-ic">✓</span>' + s[0] + '</div>'; }).join("");
+  var rows = wrap.querySelectorAll(".dstage");
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function finalState(){
+    rows.forEach(function(r){ r.classList.add("done"); });
+    bar.style.width = "100%";
+    feed.innerHTML = stages.map(function(s){ return '<div class="' + s[2] + '">› ' + s[1] + '</div>'; }).join("");
+    verdict.classList.add("show");
+  }
+  if(reduced){ finalState(); return; }
+  var timers = [];
+  function run(){
+    timers.forEach(clearTimeout); timers = [];
+    rows.forEach(function(r){ r.classList.remove("active","done"); });
+    feed.innerHTML = ""; verdict.classList.remove("show"); bar.style.width = "0";
+    stages.forEach(function(s, i){
+      timers.push(setTimeout(function(){
+        rows.forEach(function(r,j){ r.classList.toggle("active", j === i); if(j < i) r.classList.add("done"); });
+        bar.style.width = Math.round(((i + 1) / stages.length) * 100) + "%";
+        var line = document.createElement("div"); if(s[2]) line.className = s[2];
+        line.textContent = "› " + s[1]; feed.appendChild(line);
+        while(feed.children.length > 7) feed.removeChild(feed.firstChild);
+        if(i === stages.length - 1){
+          rows[i].classList.remove("active"); rows[i].classList.add("done");
+          verdict.classList.add("show");
+          timers.push(setTimeout(run, 5200));
+        }
+      }, 500 + i * 1050));
+    });
+  }
+  var started = false;
+  var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting && !started){ started = true; run(); } }); },{threshold:.25});
+  io.observe(wrap);
+})();
+</script>
 </body>
 </html>
