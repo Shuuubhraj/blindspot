@@ -11,6 +11,11 @@ Rule inventory (all category "auth"):
   BS-A08  Insecure biometric fallback to weak local check (NEEDS_REVIEW)
   BS-A09  Hardcoded privileged roles enabling hidden features
   BS-A10  Authorization flag trusted from client-controlled input (NEEDS_REVIEW)
+  BS-A11  Biometric authentication without CryptoObject
+  BS-A12  OAuth implicit flow (response_type=token)
+  BS-A13  Auth token in URL query string
+  BS-A14  Device-credential fallback without isDeviceSecure check (NEEDS_REVIEW)
+  BS-A15  Hardcoded test credential pairs near login code
 
 NEEDS_REVIEW discipline: several of these checks can only observe the
 client. A client-side indicator is NOT proof that the server fails to
@@ -996,6 +1001,393 @@ class ClientControlledAuthzFlag(Rule):
         )
 
 
+# ---------------------------------------------------------------------------
+# BS-A11 biometric authentication without CryptoObject
+# ---------------------------------------------------------------------------
+
+class BiometricWithoutCryptoObject(Rule):
+    id = "BS-A11"
+    title = "Biometric authentication without CryptoObject"
+    description = (
+        "Detects BiometricPrompt.authenticate() calls where no CryptoObject "
+        "appears within 10 lines, meaning the biometric result is not "
+        "cryptographically bound to a Keystore operation."
+    )
+    rationale = (
+        "Without a CryptoObject, a successful biometric prompt only "
+        "returns a boolean that client code must trust; hooking or "
+        "repackaging can spoof the callback. Binding the biometric to a "
+        "Keystore crypto operation makes the authentication "
+        "unforgeable (CWE-304)."
+    )
+    category = "auth"
+    default_severity = Severity.MEDIUM
+    owasp = ["M3"]
+    cwe = ["CWE-304"]
+    masvs = ["MSTG-AUTH"]
+    remediation = (
+        "Always authenticate with a CryptoObject: create the Cipher/Mac/"
+        "Signature with a Keystore key that has "
+        "setUserAuthenticationRequired(true), wrap it in "
+        "BiometricPrompt.CryptoObject, and only proceed when the crypto "
+        "operation succeeds."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/304.html",
+        "https://developer.android.com/identity/sign-in/biometric-auth",
+    ]
+
+    _AUTHENTICATE = re.compile(r"\.authenticate\s*\(")
+    _BIO = re.compile(r"\bBiometricPrompt\b")
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        flagged = []
+        for path in iter_source_files(ctx):
+            text = read_text_capped(path)
+            if not text or not self._BIO.search(text):
+                continue
+            lines = text.splitlines()
+            for i, line in enumerate(lines, start=1):
+                if not self._AUTHENTICATE.search(line):
+                    continue
+                lo = max(0, i - 1 - 10)
+                hi = min(len(lines), i + 10)
+                window = "\n".join(lines[lo:hi])
+                if "CryptoObject" in window:
+                    continue
+                m = self._AUTHENTICATE.search(line)
+                h = type("H", (), {"path": path, "line_no": i, "line": line, "match": m})()
+                flagged.append(h)
+                if len(flagged) >= 200:
+                    break
+        if not flagged:
+            return pass_result(
+                self,
+                "BiometricPrompt.authenticate() calls are bound to a "
+                "CryptoObject, or no biometric authentication was found.",
+            )
+        return finding(
+            self,
+            f"{len(flagged)} BiometricPrompt.authenticate() call(s) with no "
+            "CryptoObject within 10 lines. The biometric result is a plain "
+            "boolean callback that repackaged or hooked code can spoof.",
+            evidence=_hits_to_evidence(
+                ctx, flagged, "Biometric auth without CryptoObject nearby"
+            ),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "An unbound biometric check can be bypassed by spoofing the "
+                "success callback, undermining the authentication (Medium)."
+            ),
+            confidence_rationale=(
+                "The authenticate() call is real and no CryptoObject "
+                "appears within 10 lines, but a CryptoObject could "
+                "theoretically be wired up farther away."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-A12 OAuth implicit flow
+# ---------------------------------------------------------------------------
+
+class OAuthImplicitFlow(Rule):
+    id = "BS-A12"
+    title = "OAuth implicit flow (response_type=token)"
+    description = (
+        "Detects the literal string \"response_type=token\" in sources, "
+        "indicating use of the deprecated OAuth 2.0 implicit grant."
+    )
+    rationale = (
+        "The implicit flow returns access tokens in the URL fragment, "
+        "where they leak into browser history, logs, and referers, and it "
+        "offers no client authentication. OAuth 2.1 removed it; native "
+        "apps should use authorization code + PKCE."
+    )
+    category = "auth"
+    default_severity = Severity.MEDIUM
+    owasp = ["M3"]
+    cwe = ["CWE-287"]
+    masvs = ["MSTG-AUTH"]
+    remediation = (
+        "Migrate to authorization code flow with PKCE (RFC 8252 for native "
+        "apps). Never request response_type=token; keep tokens out of the "
+        "URL fragment."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/287.html",
+        "https://datatracker.ietf.org/doc/html/rfc8252",
+    ]
+
+    _RX = re.compile(r"response_type\s*=\s*token")
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(self._RX.pattern, iter_source_files(ctx))
+        if not hits:
+            return pass_result(
+                self,
+                "No response_type=token literals found in decompiled sources.",
+            )
+        return finding(
+            self,
+            f"{len(hits)} response_type=token literal(s) found: the app "
+            "uses the deprecated OAuth 2.0 implicit flow, which exposes "
+            "access tokens in the URL fragment.",
+            evidence=_hits_to_evidence(
+                ctx, hits, "OAuth implicit flow requested"
+            ),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Tokens delivered in the URL fragment leak into history, "
+                "logs, and referers, enabling token theft (Medium)."
+            ),
+            confidence_rationale=(
+                "The response_type=token literal is present verbatim at "
+                "the cited line; no inference required."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-A13 auth token in URL query string
+# ---------------------------------------------------------------------------
+
+class AuthTokenInUrlQuery(Rule):
+    id = "BS-A13"
+    title = "Auth token in URL query string"
+    description = (
+        "Detects hardcoded http(s) URL literals carrying access_token= or "
+        "auth_token= query parameters."
+    )
+    rationale = (
+        "URLs are logged by proxies, servers, analytics SDKs, and "
+        "WebViews; tokens in the query string leak into logs and caches "
+        "(CWE-598). Tokens belong in the Authorization header."
+    )
+    category = "auth"
+    default_severity = Severity.MEDIUM
+    owasp = ["M3"]
+    cwe = ["CWE-598"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Send tokens in the Authorization header over TLS, never in the "
+        "URL. Rotate any token that was ever placed in a query string."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/598.html",
+        "https://mas.owasp.org/MASVS/",
+    ]
+
+    _RX = re.compile(
+        r"https?://[^\s\"'<>]*[?&](?:access_token|auth_token)=",
+        re.IGNORECASE,
+    )
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(self._RX.pattern, iter_source_files(ctx), flags=re.IGNORECASE)
+        if not hits:
+            return pass_result(
+                self,
+                "No URL literals with access_token=/auth_token= query "
+                "parameters found.",
+            )
+        return finding(
+            self,
+            f"{len(hits)} URL literal(s) carry an auth token in the query "
+            "string, exposing the token to server/proxy logs and caches.",
+            evidence=_hits_to_evidence(
+                ctx, hits, "Auth token in URL query parameter"
+            ),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Query-string tokens end up in logs outside the app's "
+                "control and enable session impersonation (Medium)."
+            ),
+            confidence_rationale=(
+                "The URL and the token parameter name were matched "
+                "literally on a real source line."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-A14 device-credential fallback without isDeviceSecure check
+# ---------------------------------------------------------------------------
+
+class LockscreenFallbackWithoutSecureCheck(Rule):
+    id = "BS-A14"
+    title = "Device-credential fallback without isDeviceSecure check"
+    description = (
+        "Detects createConfirmDeviceCredentialIntent() usage in files that "
+        "never call KeyguardManager.isDeviceSecure(), meaning the app does "
+        "not verify a lock screen is actually set before relying on it."
+    )
+    rationale = (
+        "On devices with no PIN/pattern/password set, the device-"
+        "credential prompt may trivially succeed or be absent, silently "
+        "downgrading the authentication. Checking isDeviceSecure() first "
+        "is the documented guard."
+    )
+    category = "auth"
+    default_severity = Severity.LOW
+    owasp = ["M3"]
+    cwe = ["CWE-304"]
+    masvs = ["MSTG-AUTH"]
+    remediation = (
+        "Call KeyguardManager.isDeviceSecure() before launching the "
+        "credential-confirmation intent; if no secure lock screen is set, "
+        "require the user to set one or fall back to full credential "
+        "authentication."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/304.html",
+        "https://developer.android.com/reference/android/app/KeyguardManager#isDeviceSecure()",
+    ]
+
+    _INTENT = re.compile(r"\bcreateConfirmDeviceCredentialIntent\s*\(")
+    _SECURE = re.compile(r"\bisDeviceSecure\s*\(")
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        flagged = []
+        for path in iter_source_files(ctx):
+            text = read_text_capped(path)
+            if not text or not self._INTENT.search(text):
+                continue
+            if self._SECURE.search(text):
+                continue
+            for i, line in enumerate(text.splitlines(), start=1):
+                if self._INTENT.search(line):
+                    m = self._INTENT.search(line)
+                    h = type("H", (), {"path": path, "line_no": i, "line": line, "match": m})()
+                    flagged.append(h)
+                    break
+        if not flagged:
+            return pass_result(
+                self,
+                "createConfirmDeviceCredentialIntent is always paired with "
+                "an isDeviceSecure() check, or is not used.",
+            )
+        return needs_review(
+            self,
+            f"{len(flagged)} file(s) launch a device-credential "
+            "confirmation intent without checking "
+            "KeyguardManager.isDeviceSecure() in the same file. Static "
+            "analysis cannot confirm whether the check happens elsewhere "
+            "(e.g. a helper class) or what the device's lock-screen state "
+            "is; review the flow before rating this.",
+            evidence=_hits_to_evidence(
+                ctx, flagged,
+                "Device-credential intent without isDeviceSecure in file",
+            ),
+            severity=Severity.LOW,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "If no lock screen is set, the fallback may grant access "
+                "with no real authentication (Low: requires an unusual "
+                "device configuration)."
+            ),
+            confidence_rationale=(
+                "The intent launch is real and no isDeviceSecure() call "
+                "appears in the same file, but the check could live in "
+                "another class."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-A15 hardcoded test credential pairs near login code
+# ---------------------------------------------------------------------------
+
+class HardcodedTestCredentialPairs(Rule):
+    id = "BS-A15"
+    title = "Hardcoded test credential pairs near login code"
+    description = (
+        "Detects (\"admin\", \"admin\"), (\"test\", \"test\") or "
+        "\"password123\" literals in files mentioning login/authenticate/"
+        "sign-in, indicating test credentials shipped in the app."
+    )
+    rationale = (
+        "Test credentials baked into the client are extractable by "
+        "decompilation and often work against production backends, "
+        "acting as standing backdoors (CWE-798)."
+    )
+    category = "auth"
+    default_severity = Severity.MEDIUM
+    owasp = ["M3"]
+    cwe = ["CWE-798"]
+    masvs = ["MSTG-AUTH"]
+    remediation = (
+        "Remove test credential pairs from the client entirely. Provision "
+        "test users in a staging backend, and add a release-gate check "
+        "that fails the build when known test literals appear."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/798.html",
+        "https://mas.owasp.org/MASVS/",
+    ]
+
+    _PAIR = re.compile(r'"(admin|test)"\s*,\s*"\1"|"password123"')
+    _AUTH_CTX = re.compile(r"(?i)(login|authenticate|signin|sign_in)")
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = []
+        for path in iter_source_files(ctx):
+            text = read_text_capped(path)
+            if not text or not self._AUTH_CTX.search(text):
+                continue
+            for i, line in enumerate(text.splitlines(), start=1):
+                if self._PAIR.search(line):
+                    m = self._PAIR.search(line)
+                    h = type("H", (), {"path": path, "line_no": i, "line": line, "match": m})()
+                    hits.append(h)
+                    if len(hits) >= 200:
+                        break
+        if not hits:
+            return pass_result(
+                self,
+                "No hardcoded test credential pairs found near login/"
+                "authentication code.",
+            )
+        return finding(
+            self,
+            f"{len(hits)} hardcoded test credential pair(s) found near "
+            "login/authentication code. Anyone who decompiles the APK can "
+            "read and reuse them.",
+            evidence=_hits_to_evidence(
+                ctx, hits, "Hardcoded test credential pair in auth code"
+            ),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Test credentials may grant access to real backends; "
+                "impact depends on whether the backend accepts them "
+                "(Medium)."
+            ),
+            confidence_rationale=(
+                "The credential pair literal appears verbatim inside "
+                "authentication-related code at the cited line."
+            ),
+        )
+
+
 RULES: list[Rule] = [
     ClientSideOnlyAuthorization(),
     HardcodedAuthBypass(),
@@ -1007,6 +1399,11 @@ RULES: list[Rule] = [
     InsecureBiometricFallback(),
     HardcodedPrivilegedRoles(),
     ClientControlledAuthzFlag(),
+    BiometricWithoutCryptoObject(),
+    OAuthImplicitFlow(),
+    AuthTokenInUrlQuery(),
+    LockscreenFallbackWithoutSecureCheck(),
+    HardcodedTestCredentialPairs(),
 ]
 
 __all__ = ["RULES"] + [type(r).__name__ for r in RULES]

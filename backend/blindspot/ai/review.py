@@ -151,6 +151,87 @@ def _rel(ctx: ScanContext, path: Path) -> str:
         return path.name
 
 
+def _pattern_hit_lines(text: str) -> list[int]:
+    """1-based line numbers where any priority pattern matches."""
+    hits: list[int] = []
+    compiled = [re.compile(p, re.IGNORECASE) for p, _ in _PRIORITY_PATTERNS]
+    for i, line in enumerate(text.splitlines(), start=1):
+        if any(rx.search(line) for rx in compiled):
+            hits.append(i)
+    return hits
+
+
+def _merge_windows(hits: list[int], radius: int, total_lines: int) -> list[tuple[int, int]]:
+    """Merge overlapping [line-radius, line+radius] windows into ranges."""
+    if not hits:
+        return []
+    windows = sorted((max(1, h - radius), min(total_lines, h + radius)) for h in hits)
+    merged = [windows[0]]
+    for lo, hi in windows[1:]:
+        plo, phi = merged[-1]
+        if lo <= phi + 1:
+            merged[-1] = (plo, max(phi, hi))
+        else:
+            merged.append((lo, hi))
+    return merged
+
+
+def select_review_snippets(
+    ctx: ScanContext,
+    max_snippets: int | None = None,
+    radius: int | None = None,
+    max_chars_per_snippet: int | None = None,
+) -> tuple[list[tuple[str, int, int, str]], dict[str, Any]]:
+    """Snippet-targeted review selection.
+
+    Reuses the file ranking from select_review_files, but instead of sending
+    whole files, extracts merged windows around priority-pattern hits
+    (±radius lines). Each snippet carries its real absolute line range, so
+    the model reports real line numbers and the existing location
+    verification keeps working unchanged.
+
+    Returns ([(rel_path, start_line, end_line, text)], stats).
+    """
+    max_snippets = max_snippets or settings.ai_max_snippets
+    radius = radius if radius is not None else settings.ai_snippet_radius
+    max_chars = max_chars_per_snippet or settings.ai_max_chars_per_file
+    files, sel_stats = select_review_files(ctx)
+    snippets: list[tuple[str, int, int, str]] = []
+    for path, _ in files:
+        rel = _rel(ctx, path)
+        text = read_text_capped(path, max_bytes=200_000)
+        if not text:
+            continue
+        lines = text.splitlines()
+        hits = _pattern_hit_lines(text)
+        if not hits:
+            # File scored via whole-text patterns but no line hits (rare):
+            # fall back to the head of the file.
+            windows = [(1, min(len(lines), radius * 2))]
+        else:
+            windows = _merge_windows(hits, radius, len(lines))
+        for lo, hi in windows:
+            body = "\n".join(lines[lo - 1:hi])
+            if len(body) > max_chars:
+                body = body[:max_chars]
+            snippets.append((rel, lo, hi, body))
+            if len(snippets) >= max_snippets:
+                break
+        if len(snippets) >= max_snippets:
+            break
+    stats = dict(sel_stats)
+    stats["snippets_selected"] = len(snippets)
+    return snippets, stats
+
+
+def build_snippet_prompt(snippets: list[tuple[str, int, int, str]]) -> str:
+    parts = [_SYSTEM_PROMPT,
+             "\nCODE SNIPPETS UNDER REVIEW (line numbers are ABSOLUTE file line numbers - report them exactly as shown):\n"]
+    for rel, lo, hi, body in snippets:
+        parts.append(f"\n===== FILE: {rel} (absolute lines {lo}-{hi}) =====\n{body}\n===== END SNIPPET =====\n")
+    return "\n".join(parts)
+
+
 def build_prompt(files: list[tuple[str, str]]) -> str:
     parts = [_SYSTEM_PROMPT, "\nFILES UNDER REVIEW:\n"]
     for rel, text in files:
@@ -302,35 +383,55 @@ class AIReviewer:
         if not files:
             meta["error"] = "no security-relevant source files found for AI review"
             return [], meta
+        snippet_mode = settings.ai_snippet_mode
+        units: list[tuple[str, str]] = []  # (label, prompt)
+        if snippet_mode:
+            snippets, snip_stats = select_review_snippets(ctx)
+            if not snippets:
+                meta["error"] = "no security-relevant code snippets found for AI review"
+                return [], meta
+            # Group snippets by file so progress reads naturally; each
+            # group is one LLM call.
+            by_file: dict[str, list[tuple[str, int, int, str]]] = {}
+            for sn in snippets:
+                by_file.setdefault(sn[0], []).append(sn)
+            for rel, group in by_file.items():
+                units.append((f"{rel} ({len(group)} snippet(s))",
+                              build_snippet_prompt(group)))
+            meta["snippets_selected"] = snip_stats["snippets_selected"]
+            sel_stats = snip_stats
+        else:
+            rel_files = [(_rel(ctx, p), t) for p, t in files]
+            for rel, text in rel_files:
+                units.append((rel, build_prompt([(rel, text)])))
         if progress:
             skipped = sel_stats["library_files_skipped"]
-            progress(f"AI review: {len(files)} app file(s) selected "
+            unit_word = "snippet group(s)" if snippet_mode else "file(s)"
+            progress(f"AI review: {len(units)} app {unit_word} selected "
                      f"({skipped} library file(s) skipped)"
                      + (" [library fallback]" if sel_stats["fallback_to_libraries"] else ""),
                      86)
         if cancel is not None and cancel.is_set():
             meta["error"] = "cancelled"
             return [], meta
-        rel_files = [(_rel(ctx, p), t) for p, t in files]
         accepted: list[dict[str, Any]] = []
         proposed = 0
         failed = 0
-        total = len(rel_files)
-        for i, (rel, text) in enumerate(rel_files, 1):
+        total = len(units)
+        for i, (label, prompt) in enumerate(units, 1):
             if cancel is not None and cancel.is_set():
                 meta["error"] = "cancelled"
                 break
             if progress:
-                progress(f"AI reviewing file {i}/{total}: {rel}",
+                progress(f"AI reviewing {i}/{total}: {label}",
                          86 + 4 * (i - 1) / total)
-            prompt = build_prompt([(rel, text)])
             try:
                 raw_text = self.client.generate(
                     model, prompt, timeout_s=settings.ai_timeout_s)
             except Exception as exc:  # noqa: BLE001 - AI failure must not kill scans
                 failed += 1
                 if progress:
-                    progress(f"AI file {i}/{total} failed ({rel}): "
+                    progress(f"AI item {i}/{total} failed ({label}): "
                              f"{type(exc).__name__} - continuing",
                              86 + 4 * i / total)
                 continue
@@ -339,12 +440,12 @@ class AIReviewer:
             if not isinstance(raws, list):
                 failed += 1
                 if progress:
-                    progress(f"AI file {i}/{total} returned no valid findings "
-                             f"JSON ({rel}) - continuing",
+                    progress(f"AI item {i}/{total} returned no valid findings "
+                             f"JSON ({label}) - continuing",
                              86 + 4 * i / total)
                 continue
             proposed += len(raws)
-            for raw in raws[:10]:  # per-file cap: one noisy file can't dominate
+            for raw in raws[:10]:  # per-unit cap: one noisy unit can't dominate
                 if cancel is not None and cancel.is_set():
                     break
                 v = validate_ai_finding(raw, ctx)
@@ -353,15 +454,16 @@ class AIReviewer:
                     v["prompt_version"] = PROMPT_VERSION
                     accepted.append(v)
             if progress:
-                progress(f"AI reviewed {i}/{total}: {rel} - "
+                progress(f"AI reviewed {i}/{total}: {label} - "
                          f"{len(accepted)} finding(s) accepted so far",
                          86 + 4 * i / total)
         meta.update(status="completed", files_reviewed=total - failed,
                     findings_proposed=proposed,
                     findings_accepted=len(accepted),
                     library_files_skipped=sel_stats["library_files_skipped"],
-                    fallback_to_libraries=sel_stats["fallback_to_libraries"])
+                    fallback_to_libraries=sel_stats["fallback_to_libraries"],
+                    snippet_mode=snippet_mode)
         if failed:
-            meta["error"] = (f"{failed} of {total} file(s) could not be "
+            meta["error"] = (f"{failed} of {total} item(s) could not be "
                              "reviewed; scan continues with the rest")
         return accepted, meta

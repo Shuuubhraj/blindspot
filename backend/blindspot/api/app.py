@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 
 from ..ai.ollama import OllamaClient
+from ..ai import ondemand as ai_ondemand
 from ..analysis.apk import validate_apk
 from ..analysis.tools import detect_tools
 from ..config import settings
@@ -235,6 +236,70 @@ def create_app() -> FastAPI:
             f.review_note = str(body.get("note", ""))[:2000]
             s.flush()
             return finding_to_dict(f)
+
+    # ------------------------------------------------------------------
+    @app.post("/api/scans/{scan_id}/findings/{finding_id}/ai-verify",
+               dependencies=[Depends(_require_token)])
+    def ai_verify_finding(scan_id: str, finding_id: str,
+                          body: dict[str, Any]) -> dict[str, Any]:
+        """On-demand: ask the local AI whether a finding is a true positive.
+
+        Updates validation_status to ai-corroborated / ai-disputed and
+        records the verdict in provenance. Never raises for model issues;
+        returns {"error": ...} instead.
+        """
+        model = str(body.get("model", "") or "")
+        with session_scope() as s:
+            f = s.get(FindingRow, finding_id)
+            if not f or f.scan_id != scan_id:
+                raise HTTPException(status_code=404, detail="finding not found")
+            result = ai_ondemand.verify_finding(finding_to_dict(f), model=model)
+            if "error" not in result:
+                verdict = result["verdict"]
+                f.validation_status = ("ai-corroborated" if verdict == "true_positive"
+                                       else "ai-disputed" if verdict == "false_positive"
+                                       else "ai-unverified")
+                prov = list(f.provenance or [])
+                prov.append({"engine": "ai", "action": "verify",
+                             "verdict": verdict,
+                             "reasoning": result.get("reasoning", ""),
+                             "model": result.get("model", "")})
+                f.provenance = prov
+                s.flush()
+                out = finding_to_dict(f)
+                out["ai_verdict"] = result
+                return out
+            return result
+
+    # ------------------------------------------------------------------
+    @app.post("/api/scans/{scan_id}/findings/{finding_id}/ai-fix",
+               dependencies=[Depends(_require_token)])
+    def ai_fix_finding(scan_id: str, finding_id: str,
+                       body: dict[str, Any]) -> dict[str, Any]:
+        """On-demand: ask the local AI to write a minimal secure fix.
+
+        The fix is stored in provenance (never overwrites the rule's own
+        remediation text) and returned for display.
+        """
+        model = str(body.get("model", "") or "")
+        with session_scope() as s:
+            f = s.get(FindingRow, finding_id)
+            if not f or f.scan_id != scan_id:
+                raise HTTPException(status_code=404, detail="finding not found")
+            result = ai_ondemand.fix_finding(finding_to_dict(f), model=model)
+            if "error" not in result:
+                prov = list(f.provenance or [])
+                prov.append({"engine": "ai", "action": "fix",
+                             "fixed_code": result.get("fixed_code", ""),
+                             "explanation": result.get("explanation", ""),
+                             "caveats": result.get("caveats", ""),
+                             "model": result.get("model", "")})
+                f.provenance = prov
+                s.flush()
+                out = finding_to_dict(f)
+                out["ai_fix"] = result
+                return out
+            return result
 
     # ------------------------------------------------------------------
     @app.post("/api/scans/{scan_id}/cancel", dependencies=[Depends(_require_token)])

@@ -11,7 +11,7 @@
                                                    │ stages
         ┌──────────────┬──────────────┬─────────────┴──────────────┐
         ▼              ▼              ▼                            ▼
-  analysis/axml.py  analysis/     tools.py:                 rules/ (120)
+  analysis/axml.py  analysis/     tools.py:                 rules/ (200)
   (own binary-      manifest.py    mobsfscan/              Rule subclasses
    manifest codec)  apk.py        jadx/apktool adapters      + registry
                                               │
@@ -32,7 +32,7 @@ SQLite (SQLAlchemy) persists Scan / Finding / RuleExecution / StageRun / AIRevie
 | `metadata` | Manifest decode (own AXML decoder; androguard as optional enrichment), package/version/SDK/components/permissions |
 | `decompile` | JADX → Java/Kotlin sources (graceful skip when not installed) |
 | `mobsfscan` | MobSFScan static analysis over decompiled sources (non-fatal) |
-| `custom_rules` | all 120 registry rules against the scan context |
+| `custom_rules` | all 200 registry rules against the scan context |
 | `ai_review` | optional local Ollama pass (non-fatal) |
 | `normalize` | cross-engine dedup + provenance merge |
 | `finalize` | counts, limitations, report-ready state |

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { api, dash, type Finding, type ReviewStatus, type Severity } from '../api';
+import { api, dash, type AiFix, type AiVerdict, type Finding, type ReviewStatus, type Severity } from '../api';
 import { useFetch } from '../hooks/useFetch';
 import {
   Card,
@@ -91,6 +91,20 @@ function FindingDetail({
   const [note, setNote] = useState(finding.review_note ?? '');
   const [saving, setSaving] = useState<ReviewStatus | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState<'verify' | 'fix' | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const lastVerify = [...(finding.provenance ?? [])].reverse().find((p) => p.action === 'verify');
+  const lastFix = [...(finding.provenance ?? [])].reverse().find((p) => p.action === 'fix');
+  const [verdict, setVerdict] = useState<AiVerdict | null>(
+    lastVerify && typeof lastVerify.verdict === 'string'
+      ? { verdict: lastVerify.verdict as AiVerdict['verdict'], reasoning: String(lastVerify.reasoning ?? ''), model: String(lastVerify.model ?? '') }
+      : null,
+  );
+  const [aiFix, setAiFix] = useState<AiFix | null>(
+    lastFix && typeof lastFix.fixed_code === 'string'
+      ? { fixed_code: String(lastFix.fixed_code ?? ''), explanation: String(lastFix.explanation ?? ''), caveats: String(lastFix.caveats ?? ''), model: String(lastFix.model ?? '') }
+      : null,
+  );
 
   const setReview = async (status: ReviewStatus) => {
     if (!scanId || saving) return;
@@ -233,6 +247,100 @@ function FindingDetail({
           </p>
         )}
         {saveError && <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>}
+      </div>
+
+      {/* On-demand AI */}
+      <div className="mt-5 rounded-lg border border-violet-200 bg-violet-50/60 p-4 dark:border-violet-900 dark:bg-violet-950/40">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">AI assistant</p>
+          {verdict && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              verdict.verdict === 'true_positive'
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                : verdict.verdict === 'false_positive'
+                  ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+            }`}>
+              {verdict.verdict === 'true_positive' ? 'AI: true positive'
+                : verdict.verdict === 'false_positive' ? 'AI: false positive'
+                  : 'AI: uncertain'}
+            </span>
+          )}
+          <div className="ml-auto flex flex-wrap gap-2">
+            <button
+              onClick={async () => {
+                if (!scanId || aiBusy) return;
+                setAiBusy('verify'); setAiError(null);
+                try {
+                  const res = await api.aiVerify(scanId, finding.finding_id);
+                  if (res.error) setAiError(res.error);
+                  else {
+                    if (res.ai_verdict) setVerdict(res.ai_verdict);
+                    onReviewed(res);
+                    notify('AI verification complete');
+                  }
+                } catch (e) {
+                  setAiError(e instanceof Error ? e.message : 'AI verify failed');
+                } finally { setAiBusy(null); }
+              }}
+              disabled={aiBusy !== null}
+              className="rounded-lg border border-violet-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40 dark:border-violet-700 dark:bg-slate-800 dark:text-violet-300 dark:hover:bg-violet-900/50"
+            >
+              {aiBusy === 'verify' ? 'Verifying…' : 'AI verify'}
+            </button>
+            <button
+              onClick={async () => {
+                if (!scanId || aiBusy) return;
+                setAiBusy('fix'); setAiError(null);
+                try {
+                  const res = await api.aiFix(scanId, finding.finding_id);
+                  if (res.error) setAiError(res.error);
+                  else {
+                    if (res.ai_fix) setAiFix(res.ai_fix);
+                    onReviewed(res);
+                    notify('AI fix generated');
+                  }
+                } catch (e) {
+                  setAiError(e instanceof Error ? e.message : 'AI fix failed');
+                } finally { setAiBusy(null); }
+              }}
+              disabled={aiBusy !== null}
+              className="rounded-lg border border-violet-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-40 dark:border-violet-700 dark:bg-slate-800 dark:text-violet-300 dark:hover:bg-violet-900/50"
+            >
+              {aiBusy === 'fix' ? 'Writing fix…' : 'AI fix'}
+            </button>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-violet-600/80 dark:text-violet-300/70">
+          Runs the On-device model on this finding only. Verify asks for a true/false-positive verdict; Fix writes a minimal secure code patch.
+        </p>
+        {verdict && (
+          <div className="mt-3 rounded-md bg-white/70 p-3 text-sm dark:bg-slate-900/60">
+            <p className="whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-200">{verdict.reasoning}</p>
+            <p className="mt-1.5 font-mono text-[11px] text-slate-400">model: {verdict.model}</p>
+          </div>
+        )}
+        {aiFix && (
+          <div className="mt-3 space-y-2">
+            <div className="rounded-md bg-slate-900 p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Suggested fix</p>
+                <button
+                  onClick={() => copyText(aiFix.fixed_code, notify)}
+                  className="rounded-md border border-slate-700 px-2 py-1 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                >
+                  Copy fix
+                </button>
+              </div>
+              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-relaxed text-slate-100">{aiFix.fixed_code}</pre>
+            </div>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">{aiFix.explanation}</p>
+            {aiFix.caveats && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">Caveats: {aiFix.caveats}</p>
+            )}
+          </div>
+        )}
+        {aiError && <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">{aiError}</p>}
       </div>
     </div>
   );

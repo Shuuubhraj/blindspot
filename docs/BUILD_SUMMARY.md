@@ -18,7 +18,7 @@ Repo: `~/workspace/blindspot-mobile/` · CLI: `blindspot` · Console: "Blindspot
 - **PDF rebuilt to match the HTML report**: title block, 3-column metadata box grid, executive summary, contents, scope and methodology, APK metadata, scan coverage, tinted severity boxes, OWASP table, dedicated AI review section, one page per finding (AI findings get a purple AI badge), limitations.
 - **Favicon**: now the white rounded-square eye matching the console logo.
 - AI finding descriptions are richer: the model's `why_unsafe` and `preconditions` fold into the stored description as labeled sections, so they show in the UI and all reports.
-- 347 tests pass (344 + 3 new AI sanitization/composition tests).
+- 542 tests pass.
 
 ## 1. What was implemented (§1–§19)
 
@@ -28,8 +28,8 @@ Repo: `~/workspace/blindspot-mobile/` · CLI: `blindspot` · Console: "Blindspot
 | 2 | Dashboard "Blindspot Security Console" | ✅ Done - 7 routes: Upload, Live scan, Overview, Findings, History, Rules, System |
 | 3 | CLI `blindspot` | ✅ Done - `serve`, `scan`, `status`, `findings`, `report`, `rules`, `system` (all verified end-to-end) |
 | 4 | Real analysis only, never fabricate | ✅ Enforced - every finding carries real file path + 1-based line numbers + source snippet; evidence spot-verified byte-for-byte against source |
-| 5 | 100+ individually testable checks | ✅ Done - **120 rules**, each with its own unit tests (vuln → finding, clean → pass) |
-| 6 | OWASP Mobile Top 10: 2024 mapping | ✅ Done - all 120 rules mapped to M1–M10, all 10 categories covered |
+| 5 | 100+ individually testable checks | ✅ Done - **200 rules**, each with its own unit tests (vuln → finding, clean → pass) |
+| 6 | OWASP Mobile Top 10: 2024 mapping | ✅ Done - all 200 rules mapped to M1–M10, all 10 categories covered |
 | 7 | Severity × confidence as independent dimensions | ✅ Done - separate fields on every rule and finding, each with written rationale |
 | 8 | Real APK parsing (manifest, DEX, resources) | ✅ Done - own binary AXML encoder/decoder (round-trip verified; androguard independently parses our output), androguard enrichment |
 | 9 | Decompilation (JADX/apktool adapters) | ✅ Done - adapters written, degrade gracefully when tools absent (honest limitations in every report) |
@@ -40,7 +40,7 @@ Repo: `~/workspace/blindspot-mobile/` · CLI: `blindspot` · Console: "Blindspot
 | 14 | HTML/PDF/JSON exports | ✅ Done - self-contained HTML (no external resources), ReportLab PDF, versioned JSON |
 | 15 | Scan history, reopen, delete | ✅ Done - SQLite persistence, history page, 30-day retention |
 | 16 | System status & limits | ✅ Done - per-tool readiness cards, resource limits, Ollama setup hints |
-| 17 | Automated tests | ✅ Done - **347 tests pass** |
+| 17 | Automated tests | ✅ Done - **542 tests pass** |
 | 18 | Full docs | ✅ Done - README, ARCHITECTURE, SECURITY, RULES (generated from registry), MODEL_SETUP, TROUBLESHOOTING, .env.example, docker-compose.yml, install-deps.sh |
 | 19 | Sample reports | ✅ Done - `samples/` has HTML + PDF + JSON from a real fixture scan |
 
@@ -61,20 +61,22 @@ pip install -e .
 blindspot serve                      # API + console at http://127.0.0.1:8000
 blindspot scan app.apk               # full assessment from the terminal
 blindspot report <scan-id> --format pdf -o report.pdf
-pytest tests/                        # 329 tests
+pytest tests/                        # 542 tests
 # console dev mode:
 cd ../frontend && npm install && npm run dev
 ```
 
-## 4. Checks list (120 rules)
+## 4. Checks list (200 rules)
 
 - **Manifest (BS-M01–M20):** debuggable, allowBackup, cleartext, SDK levels, dangerous-permission groups, exported components without guards, task hijacking, backup rules, query-all-packages…
-- **Storage (BS-S01–S20):** hardcoded secrets/keys, PEM/keystore files, world-readable modes, external storage, insecure SharedPreferences/SQLite/cache/logs/clipboard, FileProvider paths, backup includes…
-- **Network (BS-N01–N20):** cleartext HTTP, TLS validation bypasses, pinning absence, insecure WebSocket, hardcoded IPs/URLs, proxy leakage…
+- **Storage (BS-S01–S25):** hardcoded secrets/keys, PEM/keystore files, world-readable modes, external storage, insecure SharedPreferences/SQLite/cache/logs/clipboard, FileProvider paths, backup includes…
+- **Network (BS-N01–N35):** cleartext HTTP, TLS validation bypasses, pinning absence, insecure WebSocket, hardcoded IPs/URLs, proxy leakage…
 - **Crypto (BS-C01–C15):** MD5/SHA-1, DES/3DES/RC4, ECB, hardcoded keys/IVs, insecure Random, short RSA, custom XOR crypto, CBC without integrity…
-- **WebView & injection (BS-W01–W15):** JS bridges, file-URL access, mixed content, JS injection sinks, SQLi, command injection, path traversal, deserialization, dynamic code loading…
-- **Auth (BS-A01–A10):** client-side authz, hardcoded bypass, test accounts, plaintext tokens, token expiry, secrets in logs, weak PIN, biometric fallback…
+- **WebView & injection (BS-W01–W30):** JS bridges, file-URL access, mixed content, JS injection sinks, SQLi, command injection, path traversal, deserialization, dynamic code loading…
+- **Auth (BS-A01–A15):** client-side authz, hardcoded bypass, test accounts, plaintext tokens, token expiry, secrets in logs, weak PIN, biometric fallback…
 - **Platform (BS-P01–P20):** deep-link hijacking, intent spoofing, exported receivers/providers, tapjacking, overlay, clipboard, debuggable WebView, native code loading, supply-chain…
+- **Secrets (BS-X01–X20):** cloud and API keys (AWS, Google, Stripe, Slack, GitHub, Firebase), JWTs, PEM private keys, keystore passwords, OAuth client secrets, credentials in URLs and Gradle files…
+- **Supply chain (BS-D01–D20):** ad/analytics/crash/payment SDK fingerprinting, vulnerable library versions, packer and obfuscation detection, Flutter/React Native/Cordova/Unity/Xamarin detection, tracker census…
 
 Full table with severities and OWASP mappings: `docs/RULES.md` (regenerate with `scripts/gen_rules_doc.py`).
 

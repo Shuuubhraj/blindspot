@@ -59,10 +59,10 @@ def _run(rule, ctx):
 # Registry sanity
 # ---------------------------------------------------------------------------
 
-def test_registry_has_20_unique_storage_rules():
-    assert len(sr.RULES) == 20
+def test_registry_has_25_unique_storage_rules():
+    assert len(sr.RULES) == 25
     ids = [r.id for r in sr.RULES]
-    assert ids == [f"BS-S{i:02d}" for i in range(1, 21)]
+    assert ids == [f"BS-S{i:02d}" for i in range(1, 26)]
     assert all(r.category == "storage" for r in sr.RULES)
 
 
@@ -583,3 +583,202 @@ def test_all_rules_fill_rationales_on_positive(tmp_path):
             assert r.confidence_rationale, f"{rule.id} missing confidence_rationale"
             assert r.evidence, f"{rule.id} positive without evidence"
     assert positives >= 5, f"expected several positives, got {positives}"
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# BS-S21 Auto Backup without exclusion rules
+# ---------------------------------------------------------------------------
+
+def _manifest_ctx(tmp_path, allow_backup=True, rules=False, target_sdk=34):
+    from blindspot.rules.base import ManifestData
+    ctx = _ctx(tmp_path, java="class A {}")
+    ctx.manifest = ManifestData(
+        package="com.example.app",
+        allow_backup=allow_backup,
+        full_backup_content="@xml/backup_rules" if rules else "",
+        target_sdk=target_sdk,
+        raw_xml="<manifest/>",
+    )
+    ctx.manifest_xml_path = tmp_path / "AndroidManifest.xml"
+    ctx.manifest_xml_path.write_text("<manifest/>")
+    return ctx
+
+
+def test_s21_needs_review(tmp_path):
+    r = _run(sr.BS_S21_AutoBackupWithoutExclusions(),
+             _manifest_ctx(tmp_path, allow_backup=True, rules=False, target_sdk=34))
+    assert r.status == RuleStatus.NEEDS_REVIEW
+    assert r.severity == Severity.MEDIUM
+    assert r.severity_rationale and r.confidence_rationale
+
+
+def test_s21_pass_backup_disabled(tmp_path):
+    r = _run(sr.BS_S21_AutoBackupWithoutExclusions(),
+             _manifest_ctx(tmp_path, allow_backup=False, rules=False, target_sdk=34))
+    assert r.status == RuleStatus.PASS
+
+
+def test_s21_pass_rules_configured(tmp_path):
+    r = _run(sr.BS_S21_AutoBackupWithoutExclusions(),
+             _manifest_ctx(tmp_path, allow_backup=True, rules=True, target_sdk=34))
+    assert r.status == RuleStatus.PASS
+
+
+def test_s21_pass_old_target(tmp_path):
+    r = _run(sr.BS_S21_AutoBackupWithoutExclusions(),
+             _manifest_ctx(tmp_path, allow_backup=True, rules=False, target_sdk=21))
+    assert r.status == RuleStatus.PASS
+
+
+# BS-S22 sensitive data in notifications
+# ---------------------------------------------------------------------------
+
+def test_s22_finding(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        String otp = getOtp();\n'
+        '        NotificationCompat.Builder b = new NotificationCompat.Builder(this);\n'
+        '        b.setContentText("Your OTP is " + otp);\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S22_SensitiveNotifications(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert r.severity_rationale and r.confidence_rationale
+
+
+def test_s22_pass(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        NotificationCompat.Builder b = new NotificationCompat.Builder(this);\n'
+        '        b.setContentText("Download complete");\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S22_SensitiveNotifications(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-S23 PII in logcat
+# ---------------------------------------------------------------------------
+
+def test_s23_finding_email(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        Log.d("TAG", "login failed for bob@example.com");\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S23_PiiInLogcat(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert r.evidence and r.evidence[0].line_start == 3
+
+
+def test_s23_finding_phone(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        Log.i("TAG", "calling user 9876543210 now");\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S23_PiiInLogcat(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.FINDING
+
+
+def test_s23_pass(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        Log.d("TAG", "sync complete");\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S23_PiiInLogcat(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-S24 sensitive activity without FLAG_SECURE
+# ---------------------------------------------------------------------------
+
+def test_s24_needs_review(tmp_path):
+    from blindspot.rules.base import Component, ManifestData
+    java = (
+        'package com.example;\n'
+        'public class LoginActivity {\n'
+        '    void onCreate() {\n'
+        '    }\n'
+        '}\n'
+    )
+    ctx = _ctx(tmp_path, java=java)
+    ctx.manifest = ManifestData(
+        activities=[Component(kind="activity", name="com.example.LoginActivity")]
+    )
+    r = _run(sr.BS_S24_SensitiveActivityNoFlagSecure(), ctx)
+    assert r.status == RuleStatus.NEEDS_REVIEW
+    assert r.severity == Severity.MEDIUM
+    assert r.severity_rationale and r.confidence_rationale
+    assert r.evidence and r.evidence[0].line_start == 2
+
+
+def test_s24_pass_when_flag_secure_set(tmp_path):
+    from blindspot.rules.base import Component, ManifestData
+    java = (
+        'package com.example;\n'
+        'public class LoginActivity {\n'
+        '    void onCreate() {\n'
+        '        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,\n'
+        '            WindowManager.LayoutParams.FLAG_SECURE);\n'
+        '    }\n'
+        '}\n'
+    )
+    ctx = _ctx(tmp_path, java=java)
+    ctx.manifest = ManifestData(
+        activities=[Component(kind="activity", name="com.example.LoginActivity")]
+    )
+    r = _run(sr.BS_S24_SensitiveActivityNoFlagSecure(), ctx)
+    assert r.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# BS-S25 Keystore disables randomized encryption
+# ---------------------------------------------------------------------------
+
+def test_s25_finding(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        new KeyGenParameterSpec.Builder("k", KeyProperties.PURPOSE_ENCRYPT)\n'
+        '            .setRandomizedEncryptionRequired(false)\n'
+        '            .build();\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S25_KeystoreDisablesRandomizedEncryption(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert r.severity_rationale and r.confidence_rationale
+    assert r.evidence and r.evidence[0].line_start == 4
+
+
+def test_s25_pass(tmp_path):
+    java = (
+        'class A {\n'
+        '    void m() {\n'
+        '        new KeyGenParameterSpec.Builder("k", KeyProperties.PURPOSE_ENCRYPT)\n'
+        '            .setRandomizedEncryptionRequired(true)\n'
+        '            .build();\n'
+        '    }\n'
+        '}\n'
+    )
+    r = _run(sr.BS_S25_KeystoreDisablesRandomizedEncryption(), _ctx(tmp_path, java=java))
+    assert r.status == RuleStatus.PASS

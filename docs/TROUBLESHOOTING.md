@@ -32,7 +32,7 @@ The SQLAlchemy engine is created at import time; if the SQLite parent directory 
 | Stale frontend | serving old `frontend/dist` | `cd frontend && npm run build` |
 
 ### 4. semgrep was removed in v5
-`pip install semgrep` fails on Windows by design (`Exception: Semgrep does not support Windows yet`, semgrep/semgrep#1330), so the semgrep adapter was removed entirely in v5. The pipeline's third-party stage now runs **MobSFScan only** (its own semantic-grep rules degrade gracefully when no semgrep binary is present). The 120 custom Blindspot rules are unaffected.
+`pip install semgrep` fails on Windows by design (`Exception: Semgrep does not support Windows yet`, semgrep/semgrep#1330), so the semgrep adapter was removed entirely in v5. The pipeline's third-party stage now runs **MobSFScan only** (its own semantic-grep rules degrade gracefully when no semgrep binary is present). The 200 custom Blindspot rules are unaffected.
 
 ### 5. PDF reports (v4+: ReportLab, zero setup)
 Since v4.0, PDF reports are generated with **ReportLab** (pure Python, no system libraries). PDF export works out of the box on Windows, Linux, and macOS - no MSYS2/Pango/GTK setup needed. Each finding starts on its own page.

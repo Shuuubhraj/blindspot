@@ -17,23 +17,26 @@
 
 ---
 
-**Blindspot** is an On-device Android APK security assessment platform. Drop in an APK and get a real static-analysis security report: 120 original detection rules, OWASP Mobile Top 10 (2024) mapping, an optional On-device AI second opinion, and one-click HTML / PDF / JSON exports. Everything runs on your own machine. Nothing is uploaded anywhere.
+**Blindspot** is an On-device Android APK security assessment platform. Drop in an APK and get a real static-analysis security report: 200 original detection rules, OWASP Mobile Top 10 (2024) mapping, an optional On-device AI second opinion, and one-click HTML / PDF / JSON exports. Everything runs on your own machine. Nothing is uploaded anywhere.
 
 Built by [@shuuubhraj](https://github.com/shuuubhraj).
 
 ## Features
 
 **Analysis engine**
-- 120 original, individually testable detection rules across 7 categories: manifest, storage, network, crypto, WebView, auth, platform
+- 200 original, individually testable detection rules across 9 categories: manifest, storage, network, crypto, WebView, auth, platform, secrets, supply-chain
 - Every rule mapped to the OWASP Mobile Top 10 (2024); all 10 categories covered
 - Severity and confidence tracked as independent dimensions, each with a written rationale
 - MobSFScan pattern analysis integrated with provenance-preserving cross-engine dedup
+- Cross-engine agreement: when two different engines flag the same file and line, the finding's confidence is raised automatically, with the reason recorded
 - Real evidence on every finding: actual file path, 1-based line numbers, source snippet. Nothing is ever fabricated
 
 **Local AI review (optional)**
 - On-device LLM second opinion via Ollama (e.g. `qwen2.5-coder:7b`). No cloud, no API keys, no data leaves the machine
+- Snippet-targeted review: the model reads merged code windows around suspicious regions instead of whole files, which is faster and sharper
 - Hallucination controls: every AI proposal is validated against real code locations before it is kept; findings the static engines independently confirm are marked `ai-corroborated`; AI output never overrides a static-engine result
 - Dedicated **AI Findings** page per scan: each AI finding as a full card with justification, proof of concept (file + line + code), impact, and remediation
+- **AI Verify** and **AI Fix** on every finding: an on-demand true/false-positive verdict, and a copy-paste-ready secure patch for the exact snippet
 
 **Console**
 - Live scan view: pipeline stepper, live stats, and a real-time "Behind the scenes" engine feed that survives tab switches and highlights AI hits
@@ -61,7 +64,7 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 <p align="center"><b>AI finding detail</b> - justification, proof of concept, remediation</p>
 
 <p align="center"><img src="screenshots/Rule%20Library.jpg" width="800" /></p>
-<p align="center"><b>Rule library</b> - all 120 detection rules, searchable</p>
+<p align="center"><b>Rule library</b> - all 200 detection rules, searchable</p>
 
 <p align="center"><img src="screenshots/system%201.jpg" width="800" /></p>
 <p align="center"><b>System status</b> - tool readiness and resource limits</p>
@@ -81,7 +84,7 @@ Built by [@shuuubhraj](https://github.com/shuuubhraj).
 
 ```
 Upload APK → Validate → Extract → Metadata → Decompile (JADX + apktool)
-    → MobSFScan → 120 custom rules → AI review (optional) → Report
+    → MobSFScan → 200 custom rules → AI review (optional) → Report
 ```
 
 - The manifest is decoded with Blindspot's own binary AXML parser; androguard enriches where available
@@ -159,7 +162,7 @@ blindspot scan app.apk --no-ai           # scan without the AI review
 blindspot status <scan-id>               # check scan progress
 blindspot findings <scan-id>             # list findings
 blindspot report <scan-id> --format pdf  # export HTML / PDF / JSON
-blindspot rules                          # list the 120 detection rules
+blindspot rules                          # list the 200 detection rules
 blindspot system                         # tool readiness and limits
 ```
 
@@ -194,7 +197,7 @@ blindspot/
   backend/
     blindspot/          # FastAPI app, CLI, pipeline, rules, reports
       analysis/         # APK/AXML parsing, decompiler adapters, tool detection
-      rules/            # 120 detection rules (BS-M/S/N/C/W/A/P)
+      rules/            # 200 detection rules (BS-M/S/N/C/W/A/P/X/D)
       ai/               # Ollama client + review loop with hallucination controls
       pipeline/         # scan orchestrator (stages, SSE progress, cancellation)
       reports/          # HTML / PDF (ReportLab) / JSON exporters

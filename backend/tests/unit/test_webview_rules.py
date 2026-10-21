@@ -27,7 +27,13 @@ except ImportError:  # pragma: no cover - repo assembly race
             sys.modules[_full] = _mod
     from blindspot.rules import webview_rules as wr
 
-from blindspot.rules.base import RuleStatus, ScanContext, Severity
+from blindspot.rules.base import (
+    Component,
+    ManifestData,
+    RuleStatus,
+    ScanContext,
+    Severity,
+)
 
 
 def make_ctx(tmp_path: Path) -> ScanContext:
@@ -575,6 +581,14 @@ def test_w14_info_finding(tmp_path):
         public class A {
             void f(android.webkit.WebSettings s) {
                 s.setDomStorageEnabled(true);
+                String password = "s3cret";
+                s.setAllowFileAccessFromFileURLs(true);
+                s.setGeolocationEnabled(true);
+                w.loadUrl(i.getStringExtra("target"));
+                w.loadUrl("file:///android_asset/index.html");
+                s.setSavePassword(true);
+                android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(w, true);
+                s.setDatabaseEnabled(true);
             }
         }
     """)
@@ -651,9 +665,9 @@ def test_not_applicable_without_java_roots(tmp_path):
 
 def test_rule_ids_unique_and_count(tmp_path):
     ids = [r.id for r in wr.RULES]
-    assert len(ids) == 15
-    assert ids == [f"BS-W{i:02d}" for i in range(1, 16)]
-    assert len(set(ids)) == 15
+    assert len(ids) == 30
+    assert ids == [f"BS-W{i:02d}" for i in range(1, 31)]
+    assert len(set(ids)) == 30
     for rule in wr.RULES:
         assert rule.category == "webview"
         for tag in rule.owasp:
@@ -668,6 +682,17 @@ def test_rule_ids_unique_and_count(tmp_path):
 
 def test_all_results_carry_rationales(tmp_path):
     ctx = make_ctx(tmp_path)
+    ctx.manifest = ManifestData(
+        package="com.example",
+        activities=[Component(kind="activity", name=".Main", exported=True)],
+        raw_xml=(
+            "<manifest>\n"
+            "  <application>\n"
+            '    <activity android:name=".Main" android:exported="true" />\n'
+            "  </application>\n"
+            "</manifest>"
+        ),
+    )
     write(ctx, "All.java", """
         import android.webkit.WebView; import android.webkit.WebSettings;
         import java.io.*; import dalvik.system.DexClassLoader;
@@ -691,12 +716,24 @@ def test_all_results_carry_rationales(tmp_path):
                 new DexClassLoader(x, "/o", null, getClass().getClassLoader());
                 Runtime.class.getDeclaredMethod("exec", String.class).invoke(Runtime.getRuntime(), x);
                 s.setDomStorageEnabled(true);
+                String password = "s3cret";
+                s.setAllowFileAccessFromFileURLs(true);
+                s.setGeolocationEnabled(true);
+                w.loadUrl(i.getStringExtra("target"));
+                w.loadUrl("file:///android_asset/index.html");
+                s.setSavePassword(true);
+                android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(w, true);
+                s.setDatabaseEnabled(true);
             }
             java.io.File getFilesDir() { return null; }
         }
         class Bridge {
             @JavascriptInterface
             public void run(String c) { try { Runtime.getRuntime().exec(c); } catch (Exception e) {} }
+            public void helper(String c) { try { Runtime.getRuntime().exec(c); } catch (Exception e) {} }
+        }
+        class VClient extends android.webkit.WebViewClient {
+            public void onReceivedSslError(android.webkit.WebView v, android.webkit.SslErrorHandler h, android.net.http.SslError e) { h.proceed(); }
         }
     """)
     for rule in wr.RULES:
@@ -708,3 +745,287 @@ def test_all_results_carry_rationales(tmp_path):
         assert r.confidence_rationale, rule.id
         for ev in r.evidence:
             assert ev.line_start is not None and ev.line_start >= 1, rule.id
+
+
+# ---------------------------------------------------------------------------
+# BS-W16 .. BS-W30 (appended)
+# ---------------------------------------------------------------------------
+
+_w_by_id = {r.id: r for r in wr.RULES}
+
+
+def _wtest(rule_id, ctx):
+    return _w_by_id[rule_id].run(ctx)
+
+
+def test_w16_file_access_true(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setAllowFileAccess(true); } }\n")
+    r = _wtest("BS-W16", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+
+
+def test_w16_file_access_false_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setAllowFileAccess(false); } }\n")
+    assert _wtest("BS-W16", ctx).status == RuleStatus.PASS
+
+
+def test_w17_universal_access_true(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setAllowUniversalAccessFromFileURLs(true); } }\n")
+    r = _wtest("BS-W17", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+
+
+def test_w17_absent_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setJavaScriptEnabled(true); } }\n")
+    assert _wtest("BS-W17", ctx).status == RuleStatus.PASS
+
+
+def test_w18_mixed_content_always_allow(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW); } }\n")
+    r = _wtest("BS-W18", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w18_never_allow_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW); } }\n")
+    assert _wtest("BS-W18", ctx).status == RuleStatus.PASS
+
+
+def test_w19_dom_storage_with_secret_keyword(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A {\n  void f(android.webkit.WebSettings s) {\n    s.setDomStorageEnabled(true);\n    String password = \"x\";\n  }\n}\n")
+    r = _wtest("BS-W19", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w19_dom_storage_alone_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setDomStorageEnabled(true); } }\n")
+    assert _wtest("BS-W19", ctx).status == RuleStatus.PASS
+
+
+def test_w20_geolocation_no_check(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setGeolocationEnabled(true); } }\n")
+    r = _wtest("BS-W20", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+
+
+def test_w20_geolocation_with_check_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A {\n  void f(android.webkit.WebSettings s) {\n    if (checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == 0) {\n      s.setGeolocationEnabled(true);\n    }\n  }\n}\n")
+    assert _wtest("BS-W20", ctx).status == RuleStatus.PASS
+
+
+def test_w21_bridge_with_http_load(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", """
+        public class A {
+            void f(android.webkit.WebView w) {
+                w.addJavascriptInterface(new Object(), "b");
+                w.loadUrl("http://example.com/page");
+            }
+        }
+    """)
+    r = _wtest("BS-W21", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+
+
+def test_w21_bridge_with_https_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", """
+        public class A {
+            void f(android.webkit.WebView w) {
+                w.addJavascriptInterface(new Object(), "b");
+                w.loadUrl("https://example.com/page");
+            }
+        }
+    """)
+    assert _wtest("BS-W21", ctx).status == RuleStatus.PASS
+
+
+def test_w22_loadurl_intent_extra(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w, android.content.Intent i) { w.loadUrl(i.getStringExtra(\"u\")); } }\n")
+    r = _wtest("BS-W22", ctx)
+    assert r.status == RuleStatus.NEEDS_REVIEW
+    assert r.severity == Severity.HIGH
+
+
+def test_w22_constant_url_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { w.loadUrl(\"https://example.com\"); } }\n")
+    assert _wtest("BS-W22", ctx).status == RuleStatus.PASS
+
+
+def test_w23_file_url_load(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { w.loadUrl(\"file:///android_asset/x.html\"); } }\n")
+    r = _wtest("BS-W23", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w23_https_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { w.loadUrl(\"https://example.com\"); } }\n")
+    assert _wtest("BS-W23", ctx).status == RuleStatus.PASS
+
+
+def test_w24_exported_activity_with_js(tmp_path):
+    ctx = make_ctx(tmp_path)
+    ctx.manifest = ManifestData(
+        package="com.example",
+        activities=[Component(kind="activity", name=".Main", exported=True)],
+    )
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setJavaScriptEnabled(true); } }\n")
+    r = _wtest("BS-W24", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+
+
+def test_w24_not_exported_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    ctx.manifest = ManifestData(
+        package="com.example",
+        activities=[Component(kind="activity", name=".Main", exported=False)],
+    )
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setJavaScriptEnabled(true); } }\n")
+    assert _wtest("BS-W24", ctx).status == RuleStatus.PASS
+
+
+def test_w24_no_manifest_not_applicable(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setJavaScriptEnabled(true); } }\n")
+    assert _wtest("BS-W24", ctx).status == RuleStatus.NOT_APPLICABLE
+
+
+def test_w25_http_loadurl(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { w.loadUrl(\"http://example.com/\"); } }\n")
+    r = _wtest("BS-W25", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w25_https_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { w.loadUrl(\"https://example.com/\"); } }\n")
+    assert _wtest("BS-W25", ctx).status == RuleStatus.PASS
+
+
+def test_w26_save_password_true(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setSavePassword(true); } }\n")
+    r = _wtest("BS-W26", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+
+
+def test_w26_save_password_false_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setSavePassword(false); } }\n")
+    assert _wtest("BS-W26", ctx).status == RuleStatus.PASS
+
+
+def test_w27_third_party_cookies_true(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(w, true); } }\n")
+    r = _wtest("BS-W27", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+
+
+def test_w27_third_party_cookies_false_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebView w) { android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(w, false); } }\n")
+    assert _wtest("BS-W27", ctx).status == RuleStatus.PASS
+
+
+def test_w28_ssl_error_proceed(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "C.java", """
+        class C extends android.webkit.WebViewClient {
+            public void onReceivedSslError(android.webkit.WebView v, android.webkit.SslErrorHandler h, android.net.http.SslError e) {
+                h.proceed();
+            }
+        }
+    """)
+    r = _wtest("BS-W28", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w28_ssl_error_cancel_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "C.java", """
+        class C extends android.webkit.WebViewClient {
+            public void onReceivedSslError(android.webkit.WebView v, android.webkit.SslErrorHandler h, android.net.http.SslError e) {
+                h.cancel();
+            }
+        }
+    """)
+    assert _wtest("BS-W28", ctx).status == RuleStatus.PASS
+
+
+def test_w29_database_enabled_true(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setDatabaseEnabled(true); } }\n")
+    r = _wtest("BS-W29", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+
+
+def test_w29_database_enabled_false_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "A.java", "class A { void f(android.webkit.WebSettings s) { s.setDatabaseEnabled(false); } }\n")
+    assert _wtest("BS-W29", ctx).status == RuleStatus.PASS
+
+
+def test_w30_unannotated_bridge_sink(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "Bridge2.java", """
+        public class Bridge2 {
+            public void doSecret(String c) {
+                try { Runtime.getRuntime().exec(c); } catch (Exception e) {}
+            }
+        }
+    """)
+    write(ctx, "Main.java", """
+        public class Main {
+            void f(android.webkit.WebView w) { w.addJavascriptInterface(new Bridge2(), "b2"); }
+        }
+    """)
+    r = _wtest("BS-W30", ctx)
+    assert r.status == RuleStatus.NEEDS_REVIEW
+    assert r.severity == Severity.MEDIUM
+
+
+def test_w30_fully_annotated_passes(tmp_path):
+    ctx = make_ctx(tmp_path)
+    write(ctx, "Bridge3.java", """
+        public class Bridge3 {
+            @android.webkit.JavascriptInterface
+            public void run(String c) {
+                try { Runtime.getRuntime().exec(c); } catch (Exception e) {}
+            }
+        }
+    """)
+    write(ctx, "Main.java", """
+        public class Main {
+            void f(android.webkit.WebView w) { w.addJavascriptInterface(new Bridge3(), "b3"); }
+        }
+    """)
+    assert _wtest("BS-W30", ctx).status == RuleStatus.PASS

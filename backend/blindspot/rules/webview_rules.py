@@ -1,4 +1,4 @@
-"""WebView, input validation and injection detection rules (BS-W01 .. BS-W15).
+"""WebView, input validation and injection detection rules (BS-W01 .. BS-W30).
 
 Category: "webview"
 
@@ -18,6 +18,21 @@ Rule inventory:
   BS-W13  Reflection reaching sensitive APIs (Runtime/SmsManager/WebView)
   BS-W14  WebView database/DOM storage enabled (informational)
   BS-W15  @JavascriptInterface method that reaches a sensitive sink
+  BS-W16  WebView setAllowFileAccess / setAllowFileAccessFromFileURLs enabled
+  BS-W17  WebView setAllowUniversalAccessFromFileURLs enabled
+  BS-W18  WebView mixed content always allowed (explicit policy)
+  BS-W19  WebView DOM storage enabled with sensitive keywords nearby
+  BS-W20  WebView geolocation enabled without a permission check nearby
+  BS-W21  addJavascriptInterface in a file that loads cleartext HTTP URLs
+  BS-W22  loadUrl with an intent extra passed inline
+  BS-W23  file:// URL passed to WebView.loadUrl
+  BS-W24  JavaScript-enabled WebView in an exported activity
+  BS-W25  Cleartext http:// URL passed to WebView loading APIs
+  BS-W26  WebView setSavePassword(true) (deprecated credential saving)
+  BS-W27  WebView setAcceptThirdPartyCookies(true)
+  BS-W28  WebViewClient.onReceivedSslError calls handler.proceed()
+  BS-W29  WebView setDatabaseEnabled(true)
+  BS-W30  Unannotated JS-bridge method reaching a sensitive sink
 
 Injection rules (W08-W10) treat a dangerous API alone as a heuristic:
 FINDING requires string concatenation / String.format of variables reaching
@@ -32,6 +47,7 @@ from pathlib import Path
 from .base import (
     Confidence,
     Evidence,
+    ManifestData,
     Rule,
     RuleResult,
     ScanContext,
@@ -1248,6 +1264,1045 @@ class JavascriptInterfaceSinkRule(Rule):
 
 
 # ---------------------------------------------------------------------------
+# BS-W16
+# ---------------------------------------------------------------------------
+
+class WebViewAllowFileAccessRule(Rule):
+    id = "BS-W16"
+    title = "WebView file access toggles enabled"
+    description = (
+        "Detects WebSettings.setAllowFileAccess(true) and "
+        "setAllowFileAccessFromFileURLs(true). Complements BS-W03 with a "
+        "dedicated finding for the two file-access toggles (universal access "
+        "is covered separately by BS-W17)."
+    )
+    rationale = (
+        "File-scheme access lets WebView pages read local files. Allowing "
+        "file:// pages to load other file:// resources additionally enables "
+        "cross-file data theft when combined with script execution."
+    )
+    category = "webview"
+    default_severity = Severity.HIGH
+    owasp = ["M8"]
+    cwe = ["CWE-693"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Keep setAllowFileAccess(false) unless the WebView must read local "
+        "files. Never enable setAllowFileAccessFromFileURLs; serve local "
+        "content over https with WebViewAssetLoader instead."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setAllowFileAccess(boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"setAllowFileAccess\s*\(\s*true\s*\)"
+            r"|setAllowFileAccessFromFileURLs\s*\(\s*true\s*\)",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No WebView file-access toggles enabled.")
+        return finding(
+            self,
+            f"WebView file access enabled ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "WebView file-access toggle enabled") for h in hits],
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "HIGH: file:// access lets WebView content reach the local "
+                "file system; file-URL-to-file-URL access further enables "
+                "theft of local files by loaded pages."),
+            confidence_rationale=(
+                "HIGH: the enabling calls are explicit and unambiguous."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W17
+# ---------------------------------------------------------------------------
+
+class WebViewUniversalFileAccessRule(Rule):
+    id = "BS-W17"
+    title = "WebView universal access from file URLs enabled"
+    description = (
+        "Detects "
+        "WebSettings.setAllowUniversalAccessFromFileURLs(true), which lets "
+        "file:// pages access content from any origin."
+    )
+    rationale = (
+        "Universal access from file URLs breaks the same-origin policy for "
+        "file:// content: a local page can read arbitrary files and send "
+        "them to a remote server."
+    )
+    category = "webview"
+    default_severity = Severity.HIGH
+    owasp = ["M8"]
+    cwe = ["CWE-693"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Never enable setAllowUniversalAccessFromFileURLs. Serve local "
+        "content over https with WebViewAssetLoader and keep the default "
+        "same-origin enforcement."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setAllowUniversalAccessFromFileURLs(boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"setAllowUniversalAccessFromFileURLs\s*\(\s*true\s*\)",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(
+                self, "No setAllowUniversalAccessFromFileURLs(true) calls found.")
+        return finding(
+            self,
+            f"WebView allows file:// pages to access any origin "
+            f"({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "Universal access from file:// URLs enabled")
+                for h in hits],
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "HIGH: this disables same-origin checks for file:// pages, "
+                "allowing a local page to exfiltrate arbitrary local files."),
+            confidence_rationale=(
+                "HIGH: the enabling call is explicit and unambiguous."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W18
+# ---------------------------------------------------------------------------
+
+class WebViewMixedContentExplicitRule(Rule):
+    id = "BS-W18"
+    title = "WebView mixed-content policy explicitly relaxed"
+    description = (
+        "Detects an explicit mixed-content policy of MIXED_CONTENT_ALWAYS_ALLOW "
+        "(or the raw constant 0) on WebSettings. Complements BS-W06 with a "
+        "dedicated policy finding."
+    )
+    rationale = (
+        "An explicit ALWAYS_ALLOW policy is a deliberate weakening of "
+        "transport security: https pages may pull scripts and frames over "
+        "cleartext http, which a network attacker can modify."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Remove the explicit call and rely on the default "
+        "MIXED_CONTENT_NEVER_ALLOW, or at minimum use "
+        "MIXED_CONTENT_COMPATIBILITY_MODE. Fix the underlying http "
+        "subresources instead of relaxing the policy."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#MIXED_CONTENT_ALWAYS_ALLOW",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"setMixedContentMode\s*\(\s*(?:[A-Za-z_][\w.]*\.)?MIXED_CONTENT_ALWAYS_ALLOW\s*\)"
+            r"|setMixedContentMode\s*\(\s*0\s*\)",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No explicit mixed-content relaxation found.")
+        return finding(
+            self,
+            f"WebView mixed-content policy explicitly set to ALWAYS_ALLOW "
+            f"({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "Mixed-content policy explicitly relaxed") for h in hits],
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "MEDIUM: cleartext subresources on an https page can be "
+                "intercepted and modified, undermining page integrity."),
+            confidence_rationale=(
+                "HIGH: the ALWAYS_ALLOW constant is passed explicitly."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W19
+# ---------------------------------------------------------------------------
+
+class WebViewDomStorageSensitiveRule(Rule):
+    id = "BS-W19"
+    title = "WebView DOM storage enabled near sensitive data"
+    description = (
+        "Detects setDomStorageEnabled(true) where sensitive keywords "
+        "(password, token, secret, auth, credential, session, api_key) appear "
+        "within 10 lines, suggesting web content may persist secrets in DOM "
+        "storage."
+    )
+    rationale = (
+        "DOM storage persists across sessions in the app's data directory. "
+        "When pages handled by the WebView deal with credentials or tokens, "
+        "those values may end up in localStorage/sessionStorage where other "
+        "vulnerabilities (backup, file access) can expose them."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M9"]
+    cwe = ["CWE-312"]
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "Enable DOM storage only if the WebView content needs it. Avoid "
+        "storing credentials or tokens in web storage; keep them in "
+        "EncryptedSharedPreferences or the Android Keystore, and clear web "
+        "storage on logout."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setDomStorageEnabled(boolean)",
+    ]
+
+    _KEYWORD_RX = re.compile(
+        r"password|passwd|pwd|token|secret|api[_-]?key|auth|credential|session",
+        re.IGNORECASE)
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"setDomStorageEnabled\s*\(\s*true\s*\)", iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No setDomStorageEnabled(true) calls found.")
+        flagged: list[Evidence] = []
+        for hit in hits:
+            text = _read(hit.path)
+            if not text:
+                continue
+            lines = text.splitlines()
+            lo = max(0, hit.line_no - 1 - 10)
+            hi = min(len(lines), hit.line_no + 10)
+            window = "\n".join(lines[lo:hi])
+            kw = self._KEYWORD_RX.search(window)
+            if kw:
+                flagged.append(evidence_from_hit(
+                    ctx, hit,
+                    f"DOM storage enabled with sensitive keyword "
+                    f"'{kw.group(0)}' nearby"))
+        if not flagged:
+            return pass_result(
+                self,
+                "DOM storage is enabled but no sensitive keywords were found "
+                "nearby (see BS-W14 for the informational record).")
+        return finding(
+            self,
+            f"WebView DOM storage enabled near sensitive data "
+            f"({len(flagged)} call site(s)).",
+            evidence=flagged,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "MEDIUM: secrets handled around a DOM-storage-enabled WebView "
+                "may be persisted in web storage, where backup or file-access "
+                "issues can expose them."),
+            confidence_rationale=(
+                "MEDIUM: the enabling call and the sensitive keyword are both "
+                "real and close together, but it is not proven that the secret "
+                "actually reaches web storage."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W20
+# ---------------------------------------------------------------------------
+
+class WebViewGeolocationNoPermissionCheckRule(Rule):
+    id = "BS-W20"
+    title = "WebView geolocation enabled without a permission check nearby"
+    description = (
+        "Detects setGeolocationEnabled(true) where no location-permission "
+        "check (checkSelfPermission / requestPermissions / ACCESS_FINE_LOCATION) "
+        "appears within 15 lines."
+    )
+    rationale = (
+        "Enabling WebView geolocation without verifying the location "
+        "permission suggests the permission flow is missing or handled "
+        "elsewhere; pages could then request location the app never "
+        "properly authorized."
+    )
+    category = "webview"
+    default_severity = Severity.LOW
+    owasp = ["M9"]
+    cwe = ["CWE-276"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Request ACCESS_FINE_LOCATION / ACCESS_COARSE_LOCATION at runtime "
+        "with checkSelfPermission before enabling WebView geolocation, and "
+        "implement onGeolocationPermissionsShowPrompt to gate per-origin "
+        "access behind user consent."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setGeolocationEnabled(boolean)",
+    ]
+
+    _PERM_RX = re.compile(
+        r"checkSelfPermission|requestPermissions|ACCESS_FINE_LOCATION|"
+        r"ACCESS_COARSE_LOCATION|onGeolocationPermissionsShowPrompt")
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"setGeolocationEnabled\s*\(\s*true\s*\)", iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No setGeolocationEnabled(true) calls found.")
+        flagged: list[Evidence] = []
+        for hit in hits:
+            text = _read(hit.path)
+            if not text:
+                continue
+            lines = text.splitlines()
+            lo = max(0, hit.line_no - 1 - 15)
+            hi = min(len(lines), hit.line_no + 15)
+            window = "\n".join(lines[lo:hi])
+            if not self._PERM_RX.search(window):
+                flagged.append(evidence_from_hit(
+                    ctx, hit,
+                    "Geolocation enabled with no location-permission check nearby"))
+        if not flagged:
+            return pass_result(
+                self,
+                "Geolocation is enabled but a permission check was found nearby.")
+        return finding(
+            self,
+            f"WebView geolocation enabled without a nearby permission check "
+            f"({len(flagged)} call site(s)).",
+            evidence=flagged,
+            severity=Severity.LOW,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "LOW: missing permission gating is usually a correctness and "
+                "privacy-hygiene issue; pages could prompt for location the "
+                "app did not deliberately authorize."),
+            confidence_rationale=(
+                "MEDIUM: the enabling call is real and no permission check "
+                "appears nearby, but the check could live in another method "
+                "or file."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W21
+# ---------------------------------------------------------------------------
+
+class JavascriptInterfaceWithHttpUrlRule(Rule):
+    id = "BS-W21"
+    title = "JS bridge exposed in a file that loads cleartext HTTP URLs"
+    description = (
+        "Flags files that both register an addJavascriptInterface bridge and "
+        "load a cleartext http:// URL into a WebView: the worst combination "
+        "of bridge exposure and network attackability."
+    )
+    rationale = (
+        "A JS bridge is most dangerous when the WebView loads "
+        "network-attacker-controlled content. Cleartext HTTP pages can be "
+        "modified on-path, so a bridge reachable from them is directly "
+        "exploitable by a network attacker."
+    )
+    category = "webview"
+    default_severity = Severity.HIGH
+    owasp = ["M5", "M8"]
+    cwe = ["CWE-749"]
+    masvs = ["MSTG-PLATFORM", "MSTG-NETWORK"]
+    remediation = (
+        "Load only https:// URLs in any WebView that exposes a JS bridge, "
+        "validate navigation in shouldOverrideUrlLoading, and minimize the "
+        "bridge surface to annotated methods with no sensitive operations."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebView#addJavascriptInterface(java.lang.Object,%20java.lang.String)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        by_file = _files_with_hits(ctx, r"addJavascriptInterface\s*\(")
+        if not by_file:
+            return pass_result(self, "No addJavascriptInterface() calls found.")
+        evidence: list[Evidence] = []
+        for path, hits in by_file.items():
+            text = _read(path)
+            if not text:
+                continue
+            http_load = re.search(
+                r"\.load(?:Url|DataWithBaseURL)\s*\([^)]*\"http://", text)
+            if not http_load:
+                continue
+            for hit in hits:
+                evidence.append(evidence_from_hit(
+                    ctx, hit,
+                    "addJavascriptInterface bridge in a file that loads a "
+                    "cleartext http:// URL into a WebView"))
+        if not evidence:
+            return pass_result(
+                self,
+                "JS bridges found, but no file loads cleartext http:// URLs.")
+        return finding(
+            self,
+            f"JS bridge exposed where the WebView loads cleartext HTTP "
+            f"({len(evidence)} call site(s)).",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "HIGH: a network attacker can modify cleartext pages and "
+                "drive the exposed JS bridge, turning a passive MITM into "
+                "native code execution paths."),
+            confidence_rationale=(
+                "MEDIUM: the bridge and the http:// load are both real and in "
+                "the same file, but it is not proven that the bridged page "
+                "is the cleartext one or that the bridge reaches sensitive "
+                "operations."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W22
+# ---------------------------------------------------------------------------
+
+class LoadUrlIntentExtraRule(Rule):
+    id = "BS-W22"
+    title = "loadUrl with an intent extra passed inline"
+    description = (
+        "Detects loadUrl() calls that pass getStringExtra() (or another "
+        "intent getter) directly as the URL argument. External apps can send "
+        "such intents, so the destination may be attacker-controlled."
+    )
+    rationale = (
+        "An intent extra used verbatim as a WebView URL lets any app that "
+        "can fire the intent steer the WebView to javascript:, file:// or "
+        "phishing destinations."
+    )
+    category = "webview"
+    default_severity = Severity.HIGH
+    owasp = ["M4"]
+    cwe = ["CWE-940"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Never pass raw intent extras into loadUrl. Validate the URL against "
+        "an allow-list of schemes and hosts, and reject javascript:, file: "
+        "and intent: schemes unless explicitly required."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebView#loadUrl(java.lang.String)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"\.loadUrl\s*\([^)]*get(?:StringExtra|Extras|Intent|Data)\s*\(",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(
+                self, "No loadUrl() calls with inline intent extras found.")
+        return needs_review(
+            self,
+            f"loadUrl() receives an intent extra directly "
+            f"({len(hits)} call site(s)); verify the destination is validated.",
+            evidence=[evidence_from_hit(
+                ctx, h, "Intent extra passed directly into loadUrl()")
+                for h in hits],
+            severity=Severity.HIGH,
+            confidence=Confidence.LOW,
+            severity_rationale=(
+                "HIGH: if the extra is attacker-controlled, this is an open "
+                "redirect into WebView with javascript:/file: scheme risk."),
+            confidence_rationale=(
+                "LOW: the intent getter inside loadUrl() is directly observed, "
+                "but whether external apps can reach this intent and whether "
+                "any validation happens was not established; manual review "
+                "required."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W23
+# ---------------------------------------------------------------------------
+
+class FileUrlLoadRule(Rule):
+    id = "BS-W23"
+    title = "file:// URL passed to WebView.loadUrl"
+    description = (
+        "Detects loadUrl() calls with a file:// URL literal. Combined with "
+        "JavaScript or file-access settings, local files become readable by "
+        "web content."
+    )
+    rationale = (
+        "Loading file:// URLs places local files in the WebView origin. "
+        "With JavaScript enabled or file-access toggles on, scripts can read "
+        "those files and exfiltrate them."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M8"]
+    cwe = ["CWE-693"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Avoid file:// URLs in WebViews. Serve local content over https "
+        "with WebViewAssetLoader, disable JavaScript where possible, and "
+        "keep file-access toggles off."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebView#loadUrl(java.lang.String)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"\.loadUrl\s*\(\s*\"file://", iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No file:// URLs passed to loadUrl().")
+        return finding(
+            self,
+            f"WebView loads file:// URLs ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "file:// URL passed to loadUrl()") for h in hits],
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "MEDIUM: local files enter the WebView origin; exploitability "
+                "depends on JavaScript and file-access settings, which should "
+                "be reviewed alongside."),
+            confidence_rationale=(
+                "HIGH: the file:// URL literal is directly in the loadUrl() call."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W24
+# ---------------------------------------------------------------------------
+
+class ExportedActivityWebViewRule(Rule):
+    id = "BS-W24"
+    title = "JavaScript-enabled WebView in an exported activity"
+    description = (
+        "Combines manifest and code analysis: flags the app when an "
+        "exported activity exists (android:exported=\"true\", from the parsed "
+        "manifest activities list or a raw_xml fallback) and decompiled "
+        "sources enable WebView JavaScript. External apps can then reach the "
+        "WebView."
+    )
+    rationale = (
+        "An exported activity hosting a JavaScript-enabled WebView is "
+        "reachable by any app on the device. A malicious app can fire an "
+        "intent at it and, if the URL is influenced, drive the WebView to "
+        "attacker content with script execution."
+    )
+    category = "webview"
+    default_severity = Severity.HIGH
+    owasp = ["M8"]
+    cwe = ["CWE-749"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Set android:exported=\"false\" on activities hosting WebViews "
+        "unless external access is genuinely required. If export is needed, "
+        "never derive the loaded URL from the incoming intent without "
+        "allow-list validation, and keep JavaScript disabled when possible."
+    )
+    references = [
+        "https://developer.android.com/guide/topics/manifest/activity-element#exported",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return ctx.manifest is not None and bool(ctx.java_roots)
+
+    def _raw_xml_exported_lines(self, raw_xml: str) -> dict[str, int]:
+        """Map activity android:name -> manifest line for exported activities."""
+        out: dict[str, int] = {}
+        lines = raw_xml.splitlines()
+        i = 0
+        while i < len(lines):
+            if "<activity" in lines[i]:
+                start = i
+                block: list[str] = []
+                while i < len(lines) and ">" not in lines[i]:
+                    block.append(lines[i])
+                    i += 1
+                if i < len(lines):
+                    block.append(lines[i])
+                blob = "\n".join(block)
+                if 'android:exported="true"' in blob:
+                    nm = re.search(r'android:name="([^"]+)"', blob)
+                    out[nm.group(1) if nm else "(unnamed)"] = start + 1
+            i += 1
+        return out
+
+    def _exported_activities(self, ctx: ScanContext) -> list[tuple[str, int | None]]:
+        """Return (activity name, manifest line or None) for exported activities."""
+        m = ctx.manifest
+        assert m is not None
+        line_by_name = self._raw_xml_exported_lines(m.raw_xml) if m.raw_xml else {}
+        out: list[tuple[str, int | None]] = []
+        for comp in m.activities:
+            if comp.kind == "activity" and comp.exported:
+                line = line_by_name.get(comp.name)
+                if line is None:
+                    # simple-name matching (".Main" vs "com.example.Main")
+                    simple = comp.name.rsplit(".", 1)[-1]
+                    for nm, ln in line_by_name.items():
+                        if nm.rsplit(".", 1)[-1] == simple:
+                            line = ln
+                            break
+                out.append((comp.name, line))
+        if out:
+            return out
+        return [(nm, ln) for nm, ln in line_by_name.items()]
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        exported = self._exported_activities(ctx)
+        if not exported:
+            return pass_result(self, "No exported activities declared in the manifest.")
+        js_hits = grep(r"setJavaScriptEnabled\s*\(\s*true\s*\)", iter_source_files(ctx))
+        if not js_hits:
+            return pass_result(
+                self, "Exported activities exist but no WebView JavaScript is enabled.")
+        evidence: list[Evidence] = []
+        mpath = ctx.manifest_xml_path or "AndroidManifest.xml"
+        for name, line in exported:
+            snippet = ""
+            if line and ctx.manifest and ctx.manifest.raw_xml:
+                raw_lines = ctx.manifest.raw_xml.splitlines()
+                if 1 <= line <= len(raw_lines):
+                    snippet = raw_lines[line - 1].strip()
+            evidence.append(evidence_simple(
+                ctx, mpath,
+                f"Exported activity '{name}' declared in manifest",
+                snippet=snippet or f'android:exported="true" on {name}',
+                line_start=line, line_end=line))
+        evidence += [evidence_from_hit(
+            ctx, h, "WebView JavaScript enabled") for h in js_hits[:10]]
+        names = ", ".join(n for n, _ in exported[:5])
+        return finding(
+            self,
+            f"Exported activit(ies) ({names}) combined with JavaScript-enabled "
+            f"WebView(s); external apps can reach script-capable WebViews.",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "HIGH: any on-device app can launch the exported activity; if "
+                "the WebView URL derives from the intent, this becomes "
+                "remote script execution in the app's context."),
+            confidence_rationale=(
+                "MEDIUM: the exported activity and the JavaScript toggle are "
+                "both real, but it is not proven that the WebView lives in "
+                "the exported activity or that its URL is intent-influenced."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W25
+# ---------------------------------------------------------------------------
+
+class HttpUrlLoadRule(Rule):
+    id = "BS-W25"
+    title = "Cleartext http:// URL passed to WebView loading APIs"
+    description = (
+        "Detects loadUrl() and loadDataWithBaseURL() calls with an http:// "
+        "URL literal. Narrower than BS-W04: this rule fires only on literal "
+        "cleartext URLs, not on dynamically built ones."
+    )
+    rationale = (
+        "Cleartext HTTP pages in a WebView can be intercepted and modified "
+        "on-path, exposing page content and any credentials entered."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M4"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Load only https:// URLs in WebViews and fix the underlying http "
+        "endpoints instead of accepting cleartext."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebView#loadUrl(java.lang.String)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"\.load(?:Url|DataWithBaseURL)\s*\([^)]{0,200}\"http://",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(
+                self, "No http:// literals passed to WebView loading APIs.")
+        return finding(
+            self,
+            f"WebView loads cleartext http:// URLs ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "Cleartext http:// URL passed to WebView") for h in hits],
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "MEDIUM: cleartext page loads allow network interception and "
+                "modification of content and credentials."),
+            confidence_rationale=(
+                "HIGH: the http:// URL is a literal inside the loading call."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W26
+# ---------------------------------------------------------------------------
+
+class WebViewSavePasswordRule(Rule):
+    id = "BS-W26"
+    title = "WebView credential saving enabled (setSavePassword)"
+    description = (
+        "Detects WebSettings.setSavePassword(true). The API is deprecated "
+        "and stores web-form credentials in plaintext app storage."
+    )
+    rationale = (
+        "setSavePassword(true) asks the WebView to remember usernames and "
+        "passwords in plaintext. Besides being deprecated, it keeps "
+        "credentials where backup or file-access issues can expose them."
+    )
+    category = "webview"
+    default_severity = Severity.LOW
+    owasp = ["M9"]
+    cwe = ["CWE-312"]
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "Remove setSavePassword(true) calls. Rely on the platform autofill "
+        "framework or the app's own encrypted credential storage instead."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setSavePassword(boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"setSavePassword\s*\(\s*true\s*\)", iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No setSavePassword(true) calls found.")
+        return finding(
+            self,
+            f"WebView credential saving enabled ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "setSavePassword(true): deprecated plaintext credential "
+                "saving") for h in hits],
+            severity=Severity.LOW,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "LOW: the API is deprecated and stores credentials in "
+                "plaintext, but exploitation requires access to app-private "
+                "storage or backups."),
+            confidence_rationale=(
+                "HIGH: the enabling call is explicit and unambiguous."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W27
+# ---------------------------------------------------------------------------
+
+class WebViewThirdPartyCookiesRule(Rule):
+    id = "BS-W27"
+    title = "WebView third-party cookies accepted"
+    description = (
+        "Detects CookieManager.setAcceptThirdPartyCookies(webView, true), "
+        "which lets cross-site content set cookies in the WebView."
+    )
+    rationale = (
+        "Third-party cookies enable cross-site tracking inside the WebView "
+        "and widen the impact of cookie-based session handling flaws."
+    )
+    category = "webview"
+    default_severity = Severity.LOW
+    owasp = ["M9"]
+    cwe = []
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Keep third-party cookies disabled (the default). Enable them only "
+        "for specific trusted flows and document why."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/CookieManager#setAcceptThirdPartyCookies(android.webkit.WebView,%20boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(
+            r"setAcceptThirdPartyCookies\s*\([^,]+,\s*true\s*\)",
+            iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No setAcceptThirdPartyCookies(true) calls found.")
+        return finding(
+            self,
+            f"WebView accepts third-party cookies ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "setAcceptThirdPartyCookies(..., true)") for h in hits],
+            severity=Severity.LOW,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "LOW: third-party cookies are mainly a tracking and session-"
+                "hygiene concern rather than a direct exploit primitive."),
+            confidence_rationale=(
+                "HIGH: the enabling call is explicit and unambiguous."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W28
+# ---------------------------------------------------------------------------
+
+class WebViewClientSslErrorProceedRule(Rule):
+    id = "BS-W28"
+    title = "WebViewClient.onReceivedSslError calls handler.proceed()"
+    description = (
+        "Detects a WebViewClient.onReceivedSslError() override that calls "
+        "handler.proceed(), continuing page loads despite TLS certificate "
+        "errors. WebView-focused counterpart to BS-N05."
+    )
+    rationale = (
+        "Proceeding past SSL errors lets attackers intercept WebView traffic "
+        "with invalid certificates, exposing credentials and session data "
+        "entered in the page."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M5"]
+    cwe = ["CWE-295"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Call handler.cancel() (or the super implementation) on certificate "
+        "errors and show the user a meaningful error instead of proceeding."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebViewClient#onReceivedSslError(android.webkit.WebView,%20android.webkit.SslErrorHandler,%20android.net.http.SslError)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"onReceivedSslError", iter_source_files(ctx), max_hits=100)
+        evidence: list[Evidence] = []
+        for hit in hits:
+            text = read_text_capped(hit.path)
+            if text is None:
+                continue
+            lines = text.splitlines()
+            method_text = "\n".join(lines[hit.line_no - 1: hit.line_no + 25])
+            if re.search(r"\.\s*proceed\s*\(\s*\)", method_text):
+                evidence.append(evidence_from_hit(
+                    ctx, hit,
+                    "onReceivedSslError() calls handler.proceed()"))
+        if not evidence:
+            return pass_result(self, "No WebView SSL-error bypass found.")
+        return finding(
+            self,
+            f"{len(evidence)} WebViewClient(s) ignore TLS certificate errors.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "MEDIUM: ignoring certificate errors exposes WebView traffic "
+                "to interception; severity is one step below the network-"
+                "stack equivalent because it is scoped to WebView pages."),
+            confidence_rationale=(
+                "MEDIUM: handler.proceed() was confirmed inside "
+                "onReceivedSslError, but it is not proven which pages the "
+                "affected WebView loads."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W29
+# ---------------------------------------------------------------------------
+
+class WebViewDatabaseEnabledRule(Rule):
+    id = "BS-W29"
+    title = "WebView database API enabled"
+    description = (
+        "Detects WebSettings.setDatabaseEnabled(true), which enables the "
+        "Web SQL database API for web content. Dedicated finding split out "
+        "from the informational BS-W14."
+    )
+    rationale = (
+        "The Web SQL database lets pages persist structured data on the "
+        "device. If pages store sensitive data, backup or file-access issues "
+        "can expose it."
+    )
+    category = "webview"
+    default_severity = Severity.LOW
+    owasp = ["M9"]
+    cwe = []
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "Enable the database API only if WebView content needs it, audit "
+        "what pages store, and clear web storage on logout when it may hold "
+        "sensitive data."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/WebSettings#setDatabaseEnabled(boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(r"setDatabaseEnabled\s*\(\s*true\s*\)", iter_source_files(ctx))
+        if not hits:
+            return pass_result(self, "No setDatabaseEnabled(true) calls found.")
+        return finding(
+            self,
+            f"WebView database API enabled ({len(hits)} call site(s)).",
+            evidence=[evidence_from_hit(
+                ctx, h, "setDatabaseEnabled(true)") for h in hits],
+            severity=Severity.LOW,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "LOW: the database API is a legitimate feature; risk is "
+                "contextual to what pages store."),
+            confidence_rationale=(
+                "MEDIUM: the enabling call is explicit, but whether any page "
+                "actually persists sensitive data is not established."),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-W30
+# ---------------------------------------------------------------------------
+
+class UnannotatedBridgeSinkRule(Rule):
+    id = "BS-W30"
+    title = "Unannotated JS-bridge method reaches a sensitive sink"
+    description = (
+        "Finds classes registered via addJavascriptInterface and flags "
+        "public methods that reach a sensitive sink (process exec, file "
+        "write, SQL, SMS, network, loadUrl) but lack the "
+        "@JavascriptInterface annotation. On API 17+ only annotated methods "
+        "are exposed, so this usually indicates dead code or a "
+        "forgotten annotation - either way it deserves review."
+    )
+    rationale = (
+        "A sensitive operation inside a bridge class that a developer "
+        "intended to expose (but forgot to annotate), or that becomes "
+        "exposed on older platforms, gives web content a direct path to "
+        "native capabilities."
+    )
+    category = "webview"
+    default_severity = Severity.MEDIUM
+    owasp = ["M8"]
+    cwe = ["CWE-749"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Annotate only the bridge methods that must be exposed, keep "
+        "sensitive operations out of bridge classes entirely, and validate "
+        "all bridge arguments."
+    )
+    references = [
+        "https://developer.android.com/reference/android/webkit/JavascriptInterface",
+    ]
+
+    _SINK_RX = re.compile(
+        r"\.exec\s*\(|FileOutputStream|openFileOutput\s*\(|getSharedPreferences\s*\("
+        r"|\.rawQuery\s*\(|\.execSQL\s*\(|sendTextMessage\s*\("
+        r"|HttpURLConnection|loadUrl\s*\("
+    )
+    _METHOD_RX = re.compile(
+        r"(public|protected)\s+[\w<>\[\].,\s]+\s+(\w+)\s*\([^)]*\)\s*\{"
+    )
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def _method_body(self, text: str, brace_open: int) -> str | None:
+        depth = 0
+        for i in range(brace_open, len(text)):
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[brace_open:i + 1]
+        return None
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        by_file = _files_with_hits(ctx, r"addJavascriptInterface\s*\(")
+        if not by_file:
+            return pass_result(self, "No addJavascriptInterface() calls found.")
+        evidence: list[Evidence] = []
+        for path, hits in by_file.items():
+            for hit in hits:
+                cls = _class_of_bridge_arg(
+                    _arg_after_call(hit.line, r"addJavascriptInterface\s*\("))
+                if not cls:
+                    continue
+                class_text = _find_class_text(ctx, cls)
+                if not class_text:
+                    continue
+                for m in self._METHOD_RX.finditer(class_text):
+                    name = m.group(2)
+                    # skip annotated methods (BS-W15 territory); accept both
+                    # short and fully-qualified annotation spellings
+                    before = class_text[max(0, m.start() - 120):m.start()]
+                    if "JavascriptInterface" in before:
+                        continue
+                    body = self._method_body(class_text, m.end() - 1)
+                    if body and self._SINK_RX.search(body):
+                        anno_line = class_text.count("\n", 0, m.start()) + 1
+                        evidence.append(evidence_simple(
+                            ctx, path,
+                            f"Bridge class '{cls}' has unannotated method "
+                            f"'{name}' reaching a sensitive sink",
+                            snippet=body[:1200],
+                            line_start=anno_line,
+                            line_end=anno_line))
+                        break  # one finding per bridge class is enough
+        if not evidence:
+            return pass_result(
+                self,
+                "No unannotated bridge methods reaching sensitive sinks found.")
+        return needs_review(
+            self,
+            f"{len(evidence)} bridge class(es) contain unannotated method(s) "
+            f"reaching sensitive sinks.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.LOW,
+            severity_rationale=(
+                "MEDIUM: a sensitive sink inside a bridge class is one "
+                "annotation (or one old platform) away from web reachability."),
+            confidence_rationale=(
+                "LOW: the method, the missing annotation and the sink are "
+                "real, but whether the method was meant to be exposed and "
+                "whether the WebView loads untrusted content are not proven; "
+                "manual review required."),
+        )
+
+# ---------------------------------------------------------------------------
 # Module rule list
 # ---------------------------------------------------------------------------
 
@@ -1267,6 +2322,21 @@ RULES: list[Rule] = [
     ReflectionSensitiveApiRule(),
     WebViewStorageEnabledRule(),
     JavascriptInterfaceSinkRule(),
+    WebViewAllowFileAccessRule(),
+    WebViewUniversalFileAccessRule(),
+    WebViewMixedContentExplicitRule(),
+    WebViewDomStorageSensitiveRule(),
+    WebViewGeolocationNoPermissionCheckRule(),
+    JavascriptInterfaceWithHttpUrlRule(),
+    LoadUrlIntentExtraRule(),
+    FileUrlLoadRule(),
+    ExportedActivityWebViewRule(),
+    HttpUrlLoadRule(),
+    WebViewSavePasswordRule(),
+    WebViewThirdPartyCookiesRule(),
+    WebViewClientSslErrorProceedRule(),
+    WebViewDatabaseEnabledRule(),
+    UnannotatedBridgeSinkRule(),
 ]
 
 __all__ = ["RULES"]

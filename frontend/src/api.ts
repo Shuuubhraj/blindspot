@@ -82,11 +82,25 @@ export interface Finding {
   rule_version: string | null;
   review_status: string | null;
   review_note: string | null;
+  provenance: Array<Record<string, unknown>> | null;
 }
 
 export interface FindingsResponse {
   findings: Finding[];
   total: number;
+}
+
+export interface AiVerdict {
+  verdict: 'true_positive' | 'false_positive' | 'uncertain';
+  reasoning: string;
+  model: string;
+}
+
+export interface AiFix {
+  fixed_code: string;
+  explanation: string;
+  caveats: string;
+  model: string;
 }
 
 export interface RuleInfo {
@@ -239,6 +253,26 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     });
+  },
+
+  aiVerify(
+    scanId: string,
+    findingId: string,
+  ): Promise<Finding & { ai_verdict?: AiVerdict; error?: string }> {
+    return request<Finding & { ai_verdict?: AiVerdict; error?: string }>(
+      `/scans/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(findingId)}/ai-verify`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+    );
+  },
+
+  aiFix(
+    scanId: string,
+    findingId: string,
+  ): Promise<Finding & { ai_fix?: AiFix; error?: string }> {
+    return request<Finding & { ai_fix?: AiFix; error?: string }>(
+      `/scans/${encodeURIComponent(scanId)}/findings/${encodeURIComponent(findingId)}/ai-fix`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+    );
   },
 
   listRules(): Promise<RuleInfo[]> {

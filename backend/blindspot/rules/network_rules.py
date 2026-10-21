@@ -1,4 +1,4 @@
-"""Network & transport security rules (BS-N01 .. BS-N20).
+"""Network & transport security rules (BS-N01 .. BS-N35).
 
 Each rule implements genuinely distinct detection logic against the scan
 context. Manifest rules inspect ctx.manifest; source rules scan decompiled
@@ -26,6 +26,21 @@ Rule index:
   BS-N18  backend endpoint inventory (https hosts)
   BS-N19  localhost/test endpoints in code
   BS-N20  INTERNET permission without networkSecurityConfig reference
+  BS-N21  WebSocket instantiated with a ws:// URL
+  BS-N22  debug-overrides widen trust anchors in network security config
+  BS-N23  Per-domain cleartext traffic permitted (standalone)
+  BS-N24  No certificate pinning in network security config (informational)
+  BS-N25  Hardcoded IPv4 address in http:// URL
+  BS-N26  http:// URL passed to a network API
+  BS-N27  SSLContext forced to legacy TLS/SSL
+  BS-N28  ALLOW_ALL_HOSTNAME_VERIFIER installed on connections
+  BS-N29  TrustManager that swallows certificate exceptions
+  BS-N30  Redirect following near cleartext HTTP URLs
+  BS-N31  Hardcoded proxy via Proxy/InetSocketAddress constructor
+  BS-N32  GraphQL endpoint without nearby Authorization usage
+  BS-N33  Inline permissive HostnameVerifier (lambda or anonymous class)
+  BS-N34  Custom DNS resolver bypassing system DNS
+  BS-N35  Sensitive query parameter in URL passed to a network API
 """
 
 from __future__ import annotations
@@ -1716,6 +1731,1184 @@ class InternetWithoutSecurityConfig(Rule):
 
 
 # ---------------------------------------------------------------------------
+# BS-N21
+# ---------------------------------------------------------------------------
+
+class WebSocketConstructorPlaintext(Rule):
+    id = "BS-N21"
+    title = "WebSocket instantiated with a ws:// URL"
+    description = (
+        "Detects WebSocket client construction with a plaintext ws:// URL "
+        "(e.g. new WebSocket(\"ws://...\")). Narrower than BS-N10: this rule "
+        "fires only where a ws:// literal reaches an actual WebSocket "
+        "connection-establishment site."
+    )
+    rationale = (
+        "A WebSocket handshake over ws:// sends the HTTP upgrade, headers "
+        "and all subsequent frames in plaintext, exposing session tokens "
+        "and application data to on-path attackers."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Use wss:// for every WebSocket connection. Remove ws:// URLs and "
+        "fail closed if a secure endpoint is unavailable."
+    )
+    references = [
+        "https://owasp.org/www-project-mobile-top-10/2023-risks/m5-insecure-communication",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(r'"ws://[^"\s]+"', iter_source_files(ctx), max_hits=200)
+        evidence: list[Evidence] = []
+        for hit in hits:
+            if "WebSocket" not in hit.line and "websocket" not in hit.line.lower():
+                continue
+            url = hit.match.group(0).strip('"')
+            if _is_local_host(_host_of(url)):
+                continue
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit,
+                    f"WebSocket established over plaintext ws://: {url[:120]}",
+                )
+            )
+        if not evidence:
+            return pass_result(
+                self, "No WebSocket instantiations with ws:// URLs found."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} WebSocket connection(s) over plaintext ws://.",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: the full WebSocket session, including authentication "
+                "headers and frames, travels unencrypted."
+            ),
+            confidence_rationale=(
+                "Literal ws:// URLs at WebSocket construction sites in "
+                "decompiled source."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N22
+# ---------------------------------------------------------------------------
+
+class DebugOverridesTrustAnchors(Rule):
+    id = "BS-N22"
+    title = "debug-overrides widen trust anchors in network security config"
+    description = (
+        "Parses the network security configuration for a <debug-overrides> "
+        "section that adds <trust-anchors> (e.g. user CAs). Unlike BS-N09, "
+        "which notes any debug-overrides as LOW, this rule fires only when "
+        "debug builds actually widen certificate trust."
+    )
+    rationale = (
+        "debug-overrides apply to debuggable builds. Adding trust anchors "
+        "there (commonly src=\"user\") trains developers to accept "
+        "user-installed CAs and the configuration can leak into release "
+        "builds through build misconfiguration."
+    )
+    category = _CATEGORY
+    default_severity = Severity.MEDIUM
+    owasp = ["M5"]
+    cwe = ["CWE-295"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Keep debug-overrides minimal and never ship debuggable release "
+        "builds. Prefer per-host debug proxies over widening trust anchors."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-config#debug-overrides",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _nsc_xml_path(ctx) is not None
+
+    def check(self, ctx: ScanContext):
+        path = _nsc_xml_path(ctx)
+        assert path is not None
+        text = read_text_capped(path)
+        if text is None:
+            return pass_result(self, "Network security config unreadable.")
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            return pass_result(self, "Network security config is not valid XML.")
+        dbg = root.find("debug-overrides")
+        if dbg is None or dbg.find("trust-anchors") is None:
+            return pass_result(
+                self, "No debug-overrides trust-anchor widening found."
+            )
+        lines = text.splitlines()
+        ln = next(
+            (i for i, line in enumerate(lines, start=1)
+             if "debug-overrides" in line),
+            None,
+        )
+        return finding(
+            self,
+            "debug-overrides add trust anchors (debug builds trust extra CAs).",
+            evidence=[
+                evidence_simple(
+                    ctx, path,
+                    "<debug-overrides> contains <trust-anchors>",
+                    snippet=lines[ln - 1].strip() if ln else "<debug-overrides>",
+                    line_start=ln, line_end=ln,
+                )
+            ],
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Medium: debug builds accept additional CAs, enabling "
+                "interception during development and risking release-build "
+                "leakage."
+            ),
+            confidence_rationale=(
+                "Direct XML evidence from the app's network security config."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N23
+# ---------------------------------------------------------------------------
+
+class PerDomainCleartextPolicy(Rule):
+    id = "BS-N23"
+    title = "Per-domain cleartext traffic permitted"
+    description = (
+        "Reports each <domain-config> entry with "
+        "cleartextTrafficPermitted=\"true\" as a standalone finding with the "
+        "affected domains listed. Standalone counterpart to the aggregated "
+        "BS-N15."
+    )
+    rationale = (
+        "Per-domain cleartext exceptions expose those domains' traffic to "
+        "interception. Each exception must be justified and scoped narrowly."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Migrate the excepted domains to HTTPS and remove the exceptions, or "
+        "document the justification for each one."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-config",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _nsc_xml_path(ctx) is not None
+
+    def check(self, ctx: ScanContext):
+        path = _nsc_xml_path(ctx)
+        assert path is not None
+        text = read_text_capped(path)
+        if text is None:
+            return pass_result(self, "Network security config unreadable.")
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            return pass_result(self, "Network security config is not valid XML.")
+        evidence: list[Evidence] = []
+        lines = text.splitlines()
+        for dc in root.iter("domain-config"):
+            if dc.get("cleartextTrafficPermitted", "").lower() != "true":
+                continue
+            domains = ", ".join(
+                d.text.strip() for d in dc.iter("domain") if d.text and d.text.strip()
+            ) or "(domains unlisted)"
+            ln = next(
+                (i for i, line in enumerate(lines, start=1)
+                 if "domain-config" in line and "cleartextTrafficPermitted" in line),
+                None,
+            )
+            # fall back to the first cleartextTrafficPermitted="true" line
+            if ln is None:
+                ln = next(
+                    (i for i, line in enumerate(lines, start=1)
+                     if "cleartextTrafficPermitted" in line and "true" in line),
+                    None,
+                )
+            evidence.append(
+                evidence_simple(
+                    ctx, path,
+                    f"Cleartext permitted for domain(s): {domains}",
+                    snippet=lines[ln - 1].strip() if ln else "",
+                    line_start=ln, line_end=ln,
+                )
+            )
+        if not evidence:
+            return pass_result(self, "No per-domain cleartext permissions found.")
+        return finding(
+            self,
+            f"{len(evidence)} domain(s) allowed cleartext traffic.",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: traffic to the excepted domains travels unencrypted "
+                "and is interceptable on hostile networks."
+            ),
+            confidence_rationale=(
+                "Direct XML evidence from the app's network security config."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N24
+# ---------------------------------------------------------------------------
+
+class PinningConfigAbsence(Rule):
+    id = "BS-N24"
+    title = "No certificate pinning in network security configuration"
+    description = (
+        "Config-focused pinning check: reports (informational) when the "
+        "network security config exists without a <pin-set>, or when the "
+        "app uses HTTPS but declares no network security config at all. "
+        "Code-level pinning artifacts are covered by BS-N08."
+    )
+    rationale = (
+        "Pinning is a defense-in-depth decision, not a vulnerability, so "
+        "absence is informational. This rule gives the assessor a definitive "
+        "config-level answer instead of a heuristic."
+    )
+    category = _CATEGORY
+    default_severity = Severity.INFO
+    owasp = ["M5"]
+    cwe = []
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "If the threat model includes hostile networks, add a <pin-set> "
+        "with a backup pin to the network security config and plan rotation."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-config#certificate-pinning",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _manifest(ctx) is not None
+
+    def check(self, ctx: ScanContext):
+        path = _nsc_xml_path(ctx)
+        if path is not None:
+            text = read_text_capped(path)
+            if text is not None and "<pin-set" in text:
+                return pass_result(
+                    self, "Certificate pinning configured (<pin-set> present)."
+                )
+            lines = (text or "").splitlines()
+            ln = next(
+                (i for i, line in enumerate(lines, start=1)
+                 if "network-security-config" in line),
+                None,
+            )
+            return finding(
+                self,
+                "Network security config declares no certificate pinning "
+                "(no <pin-set>). Assess the threat model.",
+                evidence=[
+                    evidence_simple(
+                        ctx, path,
+                        "No <pin-set> in network security config",
+                        snippet=lines[ln - 1].strip() if ln else "",
+                        line_start=ln, line_end=ln,
+                    )
+                ],
+                severity=Severity.INFO,
+                confidence=Confidence.MEDIUM,
+                severity_rationale=(
+                    "Informational: pinning absence is a threat-model "
+                    "decision, not a vulnerability."
+                ),
+                confidence_rationale=(
+                    "Config file parsed directly; code-level or native "
+                    "pinning outside the config would not be seen here."
+                ),
+            )
+        if not _uses_https(ctx):
+            return pass_result(self, "No HTTPS usage observed; pinning not applicable.")
+        return finding(
+            self,
+            "App uses HTTPS but declares no network security configuration, "
+            "so no declarative pinning exists. Assess the threat model.",
+            evidence=[],
+            severity=Severity.INFO,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Informational: pinning absence is a threat-model decision, "
+                "not a vulnerability."
+            ),
+            confidence_rationale=(
+                "Manifest has no networkSecurityConfig reference while HTTPS "
+                "usage was observed; code-level pinning may still exist."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N25
+# ---------------------------------------------------------------------------
+
+class HardcodedIpHttpUrl(Rule):
+    id = "BS-N25"
+    title = "Hardcoded IPv4 address in http:// URL"
+    description = (
+        "Detects http:// URLs with a literal IPv4 address instead of a "
+        "hostname. IP literals bypass DNS-based controls, cannot carry "
+        "properly validated public certificates, and usually indicate "
+        "hardcoded infrastructure."
+    )
+    rationale = (
+        "Hardcoded IP endpoints are brittle and opaque: they defeat "
+        "certificate hostname validation, hinder incident response, and "
+        "often point at forgotten test or admin infrastructure."
+    )
+    category = _CATEGORY
+    default_severity = Severity.MEDIUM
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Replace IP literals with hostnames served over HTTPS, centralize "
+        "endpoint configuration, and remove dead infrastructure references."
+    )
+    references: list[str] = []
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(
+            r'"http://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}([^"\s]*)"',
+            iter_source_files(ctx),
+            max_hits=100,
+        )
+        evidence: list[Evidence] = []
+        for hit in hits:
+            url = hit.match.group(0).strip('"')
+            host = _host_of(url)
+            if host.startswith("127.") or host == "10.0.2.2":
+                continue  # loopback/emulator handled by BS-N19
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit,
+                    f"Hardcoded IPv4 in http:// URL: {url[:120]}",
+                )
+            )
+        if not evidence:
+            return pass_result(self, "No hardcoded IPv4 addresses in http:// URLs.")
+        return finding(
+            self,
+            f"{len(evidence)} http:// URL(s) with hardcoded IPv4 address.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Medium: plaintext transport to hardcoded infrastructure is "
+                "interceptable and the endpoints are unauditable via DNS."
+            ),
+            confidence_rationale=(
+                "Literal IPv4 http:// strings taken directly from source."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N26
+# ---------------------------------------------------------------------------
+
+_NETWORK_SINK_RX = re.compile(
+    r"openConnection\s*\(|newCall\s*\(|\.url\s*\(|openStream\s*\(|"
+    r"new\s+HttpClient|@(?:GET|POST|PUT|DELETE|PATCH)\s*\(\s*\"http://"
+)
+
+
+class HttpUrlAtNetworkSink(Rule):
+    id = "BS-N26"
+    title = "http:// URL passed to a network API"
+    description = (
+        "Sink-based check: flags lines where an http:// literal reaches a "
+        "network call (openConnection, OkHttp newCall/url(), Retrofit "
+        "annotations, openStream). Stronger than BS-N02's string scan "
+        "because the URL is actually used for a request."
+    )
+    rationale = (
+        "An http:// URL that is demonstrably passed to a network API will "
+        "produce real plaintext requests, not just sit in dead code."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Change the endpoint to https:// and centralize base URLs so "
+        "transport policy is auditable in one place."
+    )
+    references = [
+        "https://owasp.org/www-project-mobile-top-10/2023-risks/m5-insecure-communication",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(r'"http://[^"\s]+"', iter_source_files(ctx), max_hits=300)
+        evidence: list[Evidence] = []
+        for hit in hits:
+            if not _NETWORK_SINK_RX.search(hit.line):
+                continue
+            url = hit.match.group(0).strip('"')
+            if _is_local_host(_host_of(url)):
+                continue
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit,
+                    f"http:// URL passed to a network API: {url[:120]}",
+                )
+            )
+        if not evidence:
+            return pass_result(
+                self, "No http:// URLs passed directly to network APIs."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} plaintext http:// request(s) issued via network APIs.",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: the URL is not just a string in the binary - it is "
+                "handed to a network API, so plaintext requests really happen."
+            ),
+            confidence_rationale=(
+                "The http:// literal and the network sink call are on the "
+                "same source line."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N27
+# ---------------------------------------------------------------------------
+
+class ForcedLegacyTlsContext(Rule):
+    id = "BS-N27"
+    title = "SSLContext forced to legacy TLS/SSL"
+    description = (
+        "Detects SSLContext.getInstance(\"TLSv1\"), (\"SSL\") or (\"TLS\") - "
+        "forcing the context to a legacy or ambiguous protocol instead of "
+        "the platform default."
+    )
+    rationale = (
+        "Pinning the SSLContext to TLS 1.0-era protocols (or bare \"SSL\") "
+        "disables modern protocol negotiation and can enable downgrade to "
+        "broken cryptography."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-327"]
+    masvs = ["MSTG-NETWORK", "MSTG-CRYPTO"]
+    remediation = (
+        "Use SSLContext.getInstance(\"TLS\") only via the platform default, "
+        "or explicitly request \"TLSv1.3\"/\"TLSv1.2\". Never request "
+        "\"TLSv1\" or \"SSL\"."
+    )
+    references = [
+        "https://www.rfc-editor.org/rfc/rfc8996.html",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(
+            r'SSLContext\s*\.\s*getInstance\s*\(\s*"(TLSv1|SSL|TLS)"\s*\)',
+            iter_source_files(ctx),
+            max_hits=50,
+        )
+        if not hits:
+            return pass_result(self, "No SSLContext forced to legacy protocols.")
+        return finding(
+            self,
+            f"{len(hits)} SSLContext.getInstance() call(s) forcing legacy protocol.",
+            evidence=[
+                evidence_from_hit(
+                    ctx, h,
+                    f"SSLContext forced to {h.match.group(1)}",
+                )
+                for h in hits
+            ],
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: forcing TLS 1.0-era (or ambiguous \"SSL\") protocols "
+                "removes modern negotiation and invites downgrade attacks."
+            ),
+            confidence_rationale=(
+                "Literal protocol strings in SSLContext.getInstance() calls."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N28
+# ---------------------------------------------------------------------------
+
+class AllowAllHostnameVerifierInstalled(Rule):
+    id = "BS-N28"
+    title = "ALLOW_ALL_HOSTNAME_VERIFIER installed on connections"
+    description = (
+        "Detects setHostnameVerifier() / setDefaultHostnameVerifier() calls "
+        "that install ALLOW_ALL_HOSTNAME_VERIFIER. Install-site focused "
+        "counterpart to BS-N04's usage detection."
+    )
+    rationale = (
+        "Installing the allow-all verifier - globally or per connection - "
+        "disables hostname authentication, so any CA-valid certificate for "
+        "any host is accepted."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-297"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Remove the installation and rely on the platform default hostname "
+        "verifier. If customization is unavoidable, allow-list expected "
+        "hostnames explicitly."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-ssl",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(
+            r"set(?:Default)?HostnameVerifier\s*\([^)]*ALLOW_ALL_HOSTNAME_VERIFIER",
+            iter_source_files(ctx),
+            max_hits=50,
+        )
+        if not hits:
+            return pass_result(
+                self, "No ALLOW_ALL_HOSTNAME_VERIFIER installations found."
+            )
+        return finding(
+            self,
+            f"{len(hits)} ALLOW_ALL_HOSTNAME_VERIFIER installation(s).",
+            evidence=[
+                evidence_from_hit(
+                    ctx, h, "ALLOW_ALL_HOSTNAME_VERIFIER installed as verifier"
+                )
+                for h in hits
+            ],
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: hostname authentication is disabled for the affected "
+                "connections, enabling impersonation with any valid "
+                "certificate."
+            ),
+            confidence_rationale=(
+                "Installation call sites reference ALLOW_ALL_HOSTNAME_VERIFIER "
+                "literally."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N29
+# ---------------------------------------------------------------------------
+
+class SwallowingTrustManager(Rule):
+    id = "BS-N29"
+    title = "TrustManager that swallows certificate exceptions"
+    description = (
+        "Detects X509TrustManager.checkServerTrusted() implementations whose "
+        "body catches exceptions without rethrowing, silently accepting "
+        "invalid certificates. Complements BS-N03, which covers empty "
+        "bodies."
+    )
+    rationale = (
+        "A checkServerTrusted that wraps validation in try/catch and drops "
+        "the exception accepts every certificate while looking like it "
+        "validates - worse than an obviously empty method because reviewers "
+        "may miss it."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-295"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Let certificate exceptions propagate or handle them explicitly "
+        "(fail closed). Better: remove the custom TrustManager and use the "
+        "platform default or proper pinning."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-ssl",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        evidence: list[Evidence] = []
+        for path in iter_source_files(ctx):
+            text = read_text_capped(path)
+            if text is None or "checkServerTrusted" not in text:
+                continue
+            for tm in re.finditer(
+                r"void\s+checkServerTrusted\s*\([^)]*\)[^\{]*\{", text
+            ):
+                brace_open = tm.end() - 1
+                depth, idx, body = 1, brace_open + 1, []
+                while idx < len(text):
+                    ch = text[idx]
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    body.append(ch)
+                    idx += 1
+                body_text = "".join(body)
+                code_only = re.sub(
+                    r"//.*|/\*.*?\*/", "", body_text, flags=re.DOTALL
+                ).strip()
+                if not code_only:
+                    continue  # empty body: BS-N03 territory
+                if re.search(r"\bcatch\s*\(", code_only) and "throw" not in code_only:
+                    line_no = text.count("\n", 0, tm.start()) + 1
+                    evidence.append(
+                        evidence_simple(
+                            ctx, path,
+                            "checkServerTrusted() catches exceptions without "
+                            "rethrowing (silent accept)",
+                            snippet=body_text.strip()[:600],
+                            line_start=line_no,
+                            line_end=line_no,
+                        )
+                    )
+        if not evidence:
+            return pass_result(
+                self, "No exception-swallowing checkServerTrusted() found."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} TrustManager(s) silently swallow certificate exceptions.",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "High: certificate validation is effectively disabled while "
+                "appearing intact, so TLS is interceptable."
+            ),
+            confidence_rationale=(
+                "Method bodies confirmed to catch without rethrowing; manual "
+                "review should confirm the catch covers the validation path."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N30
+# ---------------------------------------------------------------------------
+
+class RedirectToHttp(Rule):
+    id = "BS-N30"
+    title = "Redirect following near cleartext HTTP URLs"
+    description = (
+        "Flags files that enable setInstanceFollowRedirects(true) where an "
+        "http:// URL appears within 20 lines, suggesting redirects may land "
+        "on plaintext endpoints. Distinct from BS-N14, which is about "
+        "Authorization header leakage."
+    )
+    rationale = (
+        "Following redirects to http:// downgrades the session to "
+        "plaintext, exposing subsequent request data to on-path attackers."
+    )
+    category = _CATEGORY
+    default_severity = Severity.MEDIUM
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Handle redirects manually, validate that redirect targets stay on "
+        "https://, and never downgrade to http://."
+    )
+    references: list[str] = []
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(
+            r"setInstanceFollowRedirects\s*\(\s*true\s*\)",
+            iter_source_files(ctx),
+            max_hits=50,
+        )
+        evidence: list[Evidence] = []
+        for hit in hits:
+            text = read_text_capped(hit.path)
+            if text is None:
+                continue
+            lines = text.splitlines()
+            lo = max(0, hit.line_no - 1 - 20)
+            hi = min(len(lines), hit.line_no + 20)
+            window = "\n".join(lines[lo:hi])
+            if re.search(r'"http://', window):
+                evidence.append(
+                    evidence_from_hit(
+                        ctx, hit,
+                        "Redirect following enabled with an http:// URL nearby",
+                    )
+                )
+        if not evidence:
+            return pass_result(
+                self, "No redirect-following near cleartext URLs found."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} redirect-following site(s) near http:// URLs.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Medium: a redirect landing on http:// downgrades the "
+                "session; impact depends on whether the redirect target is "
+                "actually plaintext."
+            ),
+            confidence_rationale=(
+                "MEDIUM: the redirect call and a nearby http:// URL are "
+                "real, but it is not proven the redirect target is that URL."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N31
+# ---------------------------------------------------------------------------
+
+class HardcodedProxyConstructor(Rule):
+    id = "BS-N31"
+    title = "Hardcoded proxy via Proxy/InetSocketAddress constructor"
+    description = (
+        "Detects new Proxy(Proxy.Type.HTTP, new InetSocketAddress(\"host\", "
+        "port)) with a literal host. Fills a gap in BS-N12, whose pattern "
+        "cannot match this nested-constructor form."
+    )
+    rationale = (
+        "A hardcoded proxy routes app traffic through a fixed middlebox; "
+        "credentials and tokens sent through it are exposed to whoever "
+        "controls that host."
+    )
+    category = _CATEGORY
+    default_severity = Severity.LOW
+    owasp = ["M5"]
+    cwe = ["CWE-319"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Remove the hardcoded proxy; respect system proxy settings or make "
+        "the proxy user-configurable. Never route credentials through a "
+        "hardcoded middlebox."
+    )
+    references: list[str] = []
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        hits = grep(
+            r"new\s+Proxy\s*\(\s*Proxy\.Type\.HTTP\s*,\s*new\s+"
+            r"InetSocketAddress\s*\(\s*\"[^\"]+\"",
+            iter_source_files(ctx),
+            max_hits=50,
+        )
+        if not hits:
+            return pass_result(
+                self, "No hardcoded Proxy/InetSocketAddress construction found."
+            )
+        return finding(
+            self,
+            f"{len(hits)} hardcoded proxy construction site(s).",
+            evidence=[
+                evidence_from_hit(ctx, h, "Proxy with literal InetSocketAddress host")
+                for h in hits
+            ],
+            severity=Severity.LOW,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Low: usually a debugging leftover; serious only if "
+                "sensitive traffic is routed through the hardcoded host."
+            ),
+            confidence_rationale=(
+                "The constructor call with a literal host is directly "
+                "observed."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N32
+# ---------------------------------------------------------------------------
+
+class GraphqlWithoutAuth(Rule):
+    id = "BS-N32"
+    title = "GraphQL endpoint without nearby Authorization usage"
+    description = (
+        "Flags files referencing a \"/graphql\" endpoint where no "
+        "Authorization header usage appears within 15 lines, suggesting the "
+        "endpoint may be called without authentication."
+    )
+    rationale = (
+        "GraphQL endpoints expose the full query surface of a backend. "
+        "Calling them without authentication (or without any auth code "
+        "nearby) risks unauthenticated data access and introspection abuse."
+    )
+    category = _CATEGORY
+    default_severity = Severity.MEDIUM
+    owasp = ["M1"]
+    cwe = ["CWE-306"]
+    masvs = ["MSTG-AUTH"]
+    remediation = (
+        "Authenticate every GraphQL request (Authorization header or "
+        "equivalent), disable introspection in production, and enforce "
+        "field-level authorization server-side."
+    )
+    references = [
+        "https://cheatsheetseries.owasp.org/cheatsheets/GraphQL_Cheat_Sheet.html",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        by_file: dict = {}
+        for hit in grep(r'"/graphql"|/graphql"', iter_source_files(ctx), max_hits=50):
+            by_file.setdefault(hit.path, []).append(hit)
+        evidence: list[Evidence] = []
+        for path, hits in by_file.items():
+            text = read_text_capped(path)
+            if text is None:
+                continue
+            lines = text.splitlines()
+            for hit in hits:
+                lo = max(0, hit.line_no - 1 - 15)
+                hi = min(len(lines), hit.line_no + 15)
+                window = "\n".join(lines[lo:hi])
+                if not re.search(r"Authorization", window, re.IGNORECASE):
+                    evidence.append(
+                        evidence_from_hit(
+                            ctx, hit,
+                            '"/graphql" endpoint with no Authorization usage nearby',
+                        )
+                    )
+        if not evidence:
+            return pass_result(
+                self, "No unauthenticated-looking GraphQL endpoints found."
+            )
+        return needs_review(
+            self,
+            f"{len(evidence)} GraphQL endpoint reference(s) without nearby "
+            f"authentication; verify the endpoint requires auth.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.LOW,
+            severity_rationale=(
+                "Medium: an unauthenticated GraphQL endpoint can expose "
+                "backend data and schema; severity capped pending "
+                "confirmation."
+            ),
+            confidence_rationale=(
+                "LOW: only the absence of nearby Authorization usage was "
+                "observed; authentication may be applied elsewhere (e.g. an "
+                "interceptor). Manual review required."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N33
+# ---------------------------------------------------------------------------
+
+class InlinePermissiveHostnameVerifier(Rule):
+    id = "BS-N33"
+    title = "Inline permissive HostnameVerifier (lambda or anonymous class)"
+    description = (
+        "Detects HostnameVerifiers that return true defined inline: lambda "
+        "form (hostname, session) -> true passed to setHostnameVerifier, or "
+        "an anonymous new HostnameVerifier() whose verify() only returns "
+        "true. Complements BS-N04, which targets named classes and method "
+        "declarations."
+    )
+    rationale = (
+        "Inline permissive verifiers disable hostname authentication just "
+        "like named ones, but are easy to miss in review because they hide "
+        "inside call sites."
+    )
+    category = _CATEGORY
+    default_severity = Severity.HIGH
+    owasp = ["M5"]
+    cwe = ["CWE-297"]
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Remove the inline verifier and use the platform default. If "
+        "customization is unavoidable, allow-list expected hostnames "
+        "explicitly instead of returning true."
+    )
+    references = [
+        "https://developer.android.com/training/articles/security-ssl",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        evidence: list[Evidence] = []
+        # lambda form: setHostnameVerifier((h, s) -> true)
+        for hit in grep(
+            r"set(?:Default)?HostnameVerifier\s*\(\s*\([^)]*\)\s*->\s*true\s*\)",
+            iter_source_files(ctx),
+            max_hits=50,
+        ):
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit, "Lambda HostnameVerifier returning true"
+                )
+            )
+        # anonymous class with a trivial verify body on following lines
+        for path in iter_source_files(ctx):
+            text = read_text_capped(path)
+            if text is None or "new HostnameVerifier" not in text:
+                continue
+            for m in re.finditer(
+                r"new\s+HostnameVerifier\s*\(\s*\)\s*\{", text
+            ):
+                brace_open = m.end() - 1
+                depth, idx, body = 1, brace_open + 1, []
+                # capture a bounded window to avoid runaway on huge files
+                while idx < len(text) and idx - brace_open < 2000:
+                    ch = text[idx]
+                    if ch == "{":
+                        depth += 1
+                    elif ch == "}":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    body.append(ch)
+                    idx += 1
+                code_only = re.sub(
+                    r"//.*|/\*.*?\*/", "", "".join(body), flags=re.DOTALL
+                ).strip()
+                code_only = re.sub(
+                    r"@Override\s*", "", code_only
+                ).strip()
+                if re.fullmatch(
+                    r"public\s+boolean\s+verify\s*\([^)]*\)\s*\{\s*return\s+true\s*;\s*\}",
+                    code_only,
+                ):
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    evidence.append(
+                        evidence_simple(
+                            ctx, path,
+                            "Anonymous HostnameVerifier.verify() returns true",
+                            snippet="new HostnameVerifier() { ... return true; }",
+                            line_start=line_no,
+                            line_end=line_no,
+                        )
+                    )
+        if not evidence:
+            return pass_result(
+                self, "No inline permissive HostnameVerifiers found."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} inline permissive HostnameVerifier(s).",
+            evidence=evidence,
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "High: hostname authentication is disabled for the affected "
+                "connections, enabling impersonation with any valid "
+                "certificate."
+            ),
+            confidence_rationale=(
+                "The lambda or anonymous-class body literally returns true."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N34
+# ---------------------------------------------------------------------------
+
+class CustomDnsResolver(Rule):
+    id = "BS-N34"
+    title = "Custom DNS resolver bypassing system DNS"
+    description = (
+        "Detects custom DNS resolution: anonymous new Dns() implementations "
+        "or OkHttp .dns() calls with a non-default resolver. Custom "
+        "resolvers bypass system DNS settings (private DNS, VPN DNS, "
+        "enterprise controls)."
+    )
+    rationale = (
+        "Overriding DNS lets the app ignore the device's DNS configuration, "
+        "defeating DNS-based filtering, monitoring, and private-DNS "
+        "protections, and can pin the app to attacker-influenced resolvers."
+    )
+    category = _CATEGORY
+    default_severity = Severity.LOW
+    owasp = ["M5"]
+    cwe = []
+    masvs = ["MSTG-NETWORK"]
+    remediation = (
+        "Use the system DNS resolver (the default). If custom resolution "
+        "is required, document why and prefer DNS-over-HTTPS to a trusted "
+        "resolver."
+    )
+    references: list[str] = []
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        evidence: list[Evidence] = []
+        for hit in grep(
+            r"new\s+Dns\s*\(\s*\)\s*\{", iter_source_files(ctx), max_hits=50
+        ):
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit, "Anonymous Dns implementation overrides resolution"
+                )
+            )
+        for hit in grep(
+            r"\.dns\s*\(", iter_source_files(ctx), max_hits=50
+        ):
+            if "Dns.SYSTEM" in hit.line:
+                continue  # explicit system default is fine
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit, "Custom DNS resolver installed via .dns()"
+                )
+            )
+        if not evidence:
+            return pass_result(self, "No custom DNS resolvers found.")
+        return finding(
+            self,
+            f"{len(evidence)} custom DNS resolver site(s).",
+            evidence=evidence,
+            severity=Severity.LOW,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Low: bypassing system DNS is mainly a control-evasion and "
+                "privacy concern; it becomes serious if the resolver is "
+                "attacker-influenced."
+            ),
+            confidence_rationale=(
+                "Custom Dns implementations and .dns() installs are directly "
+                "observed; whether the resolver itself is malicious needs "
+                "review."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-N35
+# ---------------------------------------------------------------------------
+
+class SensitiveQueryParamAtSink(Rule):
+    id = "BS-N35"
+    title = "Sensitive query parameter in URL passed to a network API"
+    description = (
+        "Sink-based counterpart to BS-N13: flags lines where a URL carrying "
+        "a sensitive query parameter (token, api_key, secret, password) is "
+        "passed directly to a network API (openConnection, OkHttp "
+        "newCall/url(), Retrofit annotations)."
+    )
+    rationale = (
+        "Credentials in query strings are logged by servers, proxies, and "
+        "analytics. When the URL demonstrably reaches a network call, the "
+        "exposure is real rather than hypothetical."
+    )
+    category = _CATEGORY
+    default_severity = Severity.MEDIUM
+    owasp = ["M5", "M6"]
+    cwe = ["CWE-598"]
+    masvs = ["MSTG-NETWORK", "MSTG-STORAGE"]
+    remediation = (
+        "Move credentials and tokens out of URLs into Authorization headers "
+        "or POST bodies. Rotate any secrets that were transmitted in URLs."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/598.html",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return bool(ctx.java_roots)
+
+    def check(self, ctx: ScanContext):
+        evidence: list[Evidence] = []
+        for hit in grep(
+            r'"https?://[^"\s]*[?&](token|password|passwd|pwd|api[_-]?key|'
+            r"secret|auth|sessionid|access[_-]?token|client[_-]?secret)=",
+            iter_source_files(ctx),
+            flags=re.IGNORECASE,
+            max_hits=200,
+        ):
+            if not _NETWORK_SINK_RX.search(hit.line):
+                continue
+            redacted = _SENSITIVE_PARAM_RX.sub(
+                lambda m: m.group(0).split("=")[0] + "=<redacted>",
+                hit.match.group(0),
+            )
+            evidence.append(
+                evidence_from_hit(
+                    ctx, hit,
+                    f"Sensitive query parameter sent via network API: "
+                    f"{redacted[:140]}",
+                )
+            )
+        if not evidence:
+            return pass_result(
+                self, "No sensitive query parameters passed to network APIs."
+            )
+        return finding(
+            self,
+            f"{len(evidence)} network call(s) with sensitive query parameters.",
+            evidence=evidence,
+            severity=Severity.MEDIUM,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Medium: query-string secrets are logged and cached in many "
+                "places along the request path."
+            ),
+            confidence_rationale=(
+                "The sensitive parameter and the network sink call are on "
+                "the same source line."
+            ),
+        )
+
+# ---------------------------------------------------------------------------
 # Module export
 # ---------------------------------------------------------------------------
 
@@ -1740,4 +2933,19 @@ RULES: list[Rule] = [
     BackendEndpointInventory(),
     LocalhostTestEndpoints(),
     InternetWithoutSecurityConfig(),
+    WebSocketConstructorPlaintext(),
+    DebugOverridesTrustAnchors(),
+    PerDomainCleartextPolicy(),
+    PinningConfigAbsence(),
+    HardcodedIpHttpUrl(),
+    HttpUrlAtNetworkSink(),
+    ForcedLegacyTlsContext(),
+    AllowAllHostnameVerifierInstalled(),
+    SwallowingTrustManager(),
+    RedirectToHttp(),
+    HardcodedProxyConstructor(),
+    GraphqlWithoutAuth(),
+    InlinePermissiveHostnameVerifier(),
+    CustomDnsResolver(),
+    SensitiveQueryParamAtSink(),
 ]

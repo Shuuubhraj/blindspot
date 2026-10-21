@@ -8,6 +8,8 @@ Category modules (each created/maintained independently):
   webview_rules   BS-W01..  WebView, input validation & injection
   auth_rules      BS-A01..  authentication, authorization & business logic
   platform_rules  BS-P01..  deep links, IPC, binary protection, supply chain
+  secret_rules    BS-X01..  hardcoded secrets & credentials
+  supply_rules    BS-D01..  SDK fingerprinting & supply chain
 
 Each module exposes RULES: list[Rule].
 """
@@ -20,7 +22,9 @@ from . import (
     manifest_rules,
     network_rules,
     platform_rules,
+    secret_rules,
     storage_rules,
+    supply_rules,
     webview_rules,
 )
 from .base import Rule
@@ -33,6 +37,8 @@ _MODULES = (
     webview_rules,
     auth_rules,
     platform_rules,
+    secret_rules,
+    supply_rules,
 )
 
 

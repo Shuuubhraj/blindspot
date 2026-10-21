@@ -51,6 +51,14 @@ class Settings:
     # (~1000 tokens) + generation. Ollama's default 4096 is too small and
     # silently drops the system prompt mid-generation; 8192 is safe.
     ai_num_ctx: int = _env_int("BLINDSPOT_AI_NUM_CTX", 8192)
+    # Snippet-targeted review: instead of whole files, the reviewer gets
+    # merged windows around priority-pattern hits (see ai/review.py).
+    # Far fewer tokens per call, sharper focus on risky code.
+    ai_snippet_mode: bool = os.environ.get("BLINDSPOT_AI_SNIPPET_MODE", "1") == "1"
+    ai_snippet_radius: int = _env_int("BLINDSPOT_AI_SNIPPET_RADIUS", 35)
+    ai_max_snippets: int = _env_int("BLINDSPOT_AI_MAX_SNIPPETS", 24)
+    # Timeout for on-demand per-finding AI verify/fix calls.
+    ai_ondemand_timeout_s: int = _env_int("BLINDSPOT_AI_ONDEMAND_TIMEOUT_S", 180)
     api_token: str = os.environ.get("BLINDSPOT_API_TOKEN", "")  # optional; "" = no auth on localhost
 
     def ensure_dirs(self) -> None:

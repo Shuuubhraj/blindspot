@@ -248,9 +248,24 @@ def _mergeable(existing: FindingRow, new: dict[str, Any]) -> bool:
             and existing.line_start == new["line_start"])
 
 
+def _bump_confidence(value: str) -> str:
+    order = ["low", "medium", "high"]
+    try:
+        idx = order.index(value)
+    except ValueError:
+        return "medium"
+    return order[min(idx + 1, 2)]
+
+
 def add_finding(session, scan_id: str, nxt: Callable[[], str],
                 f: dict[str, Any]) -> FindingRow | None:
-    """Insert a finding, merging exact duplicates across engines."""
+    """Insert a finding, merging exact duplicates across engines.
+
+    Cross-engine corroboration: when a second, different engine reports the
+    exact same file+line, confidence rises one level - two independent
+    detectors agreeing is stronger evidence than one. The boost is recorded
+    in confidence_rationale so it is auditable, never silent.
+    """
     f.setdefault("provenance", []).insert(
         0, {"engine": f.get("engine", "custom"),
             "rule_id": f.get("rule_id", ""),
@@ -259,12 +274,23 @@ def add_finding(session, scan_id: str, nxt: Callable[[], str],
         for row in session.query(FindingRow).filter_by(scan_id=scan_id).all():
             if _mergeable(row, f):
                 prov = list(row.provenance or [])
-                prov.append({"engine": f.get("engine"), "rule_id": f.get("rule_id"),
+                new_engine = f.get("engine")
+                known_engines = {p.get("engine") for p in prov if p.get("engine")}
+                prov.append({"engine": new_engine, "rule_id": f.get("rule_id"),
                              "title": f.get("title")})
                 row.provenance = prov
-                if f.get("engine") == Engine.AI.value and row.validation_status in (
+                if new_engine == Engine.AI.value and row.validation_status in (
                         "static", "heuristic"):
                     row.validation_status = "ai-corroborated"
+                if new_engine and new_engine not in known_engines:
+                    # A genuinely different engine agrees on this location.
+                    old_conf = row.confidence or "low"
+                    row.confidence = _bump_confidence(old_conf)
+                    note = (f"Corroborated by a second engine ({new_engine}) "
+                            f"at the same location; confidence {old_conf} -> "
+                            f"{row.confidence}.")
+                    row.confidence_rationale = (
+                        (row.confidence_rationale or "") + " " + note).strip()
                 return row  # merged, no new row
     return persist_finding(session, scan_id, nxt(), f)
 

@@ -443,9 +443,9 @@ def test_a10_server_validated_passes(tmp_path):
 # cross-cutting: registry + NOT_APPLICABLE
 # ---------------------------------------------------------------------------
 
-def test_registry_contains_all_ten():
+def test_registry_contains_all_fifteen():
     ids = [r.id for r in RULES]
-    assert ids == [f"BS-A{i:02d}" for i in range(1, 11)]
+    assert ids == [f"BS-A{i:02d}" for i in range(1, 16)]
     assert all(r.category == "auth" for r in RULES)
     for r in RULES:
         assert r.owasp and all(o in {f"M{i}" for i in range(1, 11)} for o in r.owasp)
@@ -463,3 +463,179 @@ def test_not_applicable_without_java_roots(tmp_path):
 def test_no_duplicate_ids():
     ids = [r.id for r in RULES]
     assert len(ids) == len(set(ids))
+
+
+# ---------------------------------------------------------------------------
+# BS-A11
+# ---------------------------------------------------------------------------
+
+A11_VULN = """package com.example;
+public class Bio {
+    void start(BiometricPrompt prompt, BiometricPrompt.PromptInfo info) {
+        prompt.authenticate(info);
+    }
+}
+"""
+
+A11_CLEAN = """package com.example;
+public class Bio {
+    void start(BiometricPrompt prompt, BiometricPrompt.PromptInfo info,
+               BiometricPrompt.CryptoObject crypto) {
+        prompt.authenticate(info, crypto);
+    }
+}
+"""
+
+
+def test_a11_no_crypto_object_finding(tmp_path):
+    res = run("BS-A11", make_ctx(tmp_path, {"Bio.java": A11_VULN}))
+    assert res.status == RuleStatus.FINDING
+    assert res.severity.value == "medium"
+    assert res.evidence and res.evidence[0].line_start == 4
+    assert res.severity_rationale and res.confidence_rationale
+
+
+def test_a11_crypto_object_passes(tmp_path):
+    res = run("BS-A11", make_ctx(tmp_path, {"Bio.java": A11_CLEAN}))
+    assert res.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-A12
+# ---------------------------------------------------------------------------
+
+A12_VULN = """package com.example;
+public class OAuth {
+    String url() {
+        return "https://example.com/oauth?response_type=token&client_id=x";
+    }
+}
+"""
+
+A12_CLEAN = """package com.example;
+public class OAuth {
+    String url() {
+        return "https://example.com/oauth?response_type=code&client_id=x";
+    }
+}
+"""
+
+
+def test_a12_implicit_flow_finding(tmp_path):
+    res = run("BS-A12", make_ctx(tmp_path, {"OAuth.java": A12_VULN}))
+    assert res.status == RuleStatus.FINDING
+    assert res.severity.value == "medium"
+    assert res.evidence and res.evidence[0].line_start == 4
+    assert res.severity_rationale and res.confidence_rationale
+
+
+def test_a12_code_flow_passes(tmp_path):
+    res = run("BS-A12", make_ctx(tmp_path, {"OAuth.java": A12_CLEAN}))
+    assert res.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-A13
+# ---------------------------------------------------------------------------
+
+A13_VULN = """package com.example;
+public class Api {
+    String url() {
+        return "https://api.example.com/data?access_token=abc123";
+    }
+}
+"""
+
+A13_CLEAN = """package com.example;
+public class Api {
+    String url() {
+        return "https://api.example.com/data?user=bob";
+    }
+}
+"""
+
+
+def test_a13_token_in_query_finding(tmp_path):
+    res = run("BS-A13", make_ctx(tmp_path, {"Api.java": A13_VULN}))
+    assert res.status == RuleStatus.FINDING
+    assert res.severity.value == "medium"
+    assert res.evidence and res.evidence[0].line_start == 4
+    assert res.severity_rationale and res.confidence_rationale
+
+
+def test_a13_clean_url_passes(tmp_path):
+    res = run("BS-A13", make_ctx(tmp_path, {"Api.java": A13_CLEAN}))
+    assert res.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-A14
+# ---------------------------------------------------------------------------
+
+A14_VULN = """package com.example;
+public class Lock {
+    void ask(KeyguardManager km) {
+        Intent i = km.createConfirmDeviceCredentialIntent("title", "desc");
+        startActivity(i);
+    }
+}
+"""
+
+A14_CLEAN = """package com.example;
+public class Lock {
+    void ask(KeyguardManager km) {
+        if (km.isDeviceSecure()) {
+            Intent i = km.createConfirmDeviceCredentialIntent("title", "desc");
+            startActivity(i);
+        }
+    }
+}
+"""
+
+
+def test_a14_missing_secure_check_needs_review(tmp_path):
+    res = run("BS-A14", make_ctx(tmp_path, {"Lock.java": A14_VULN}))
+    assert res.status == RuleStatus.NEEDS_REVIEW
+    assert res.severity.value == "low"
+    assert res.evidence and res.evidence[0].line_start == 4
+    assert res.severity_rationale and res.confidence_rationale
+
+
+def test_a14_secure_check_passes(tmp_path):
+    res = run("BS-A14", make_ctx(tmp_path, {"Lock.java": A14_CLEAN}))
+    assert res.status == RuleStatus.PASS
+
+
+# ---------------------------------------------------------------------------
+# BS-A15
+# ---------------------------------------------------------------------------
+
+A15_VULN = """package com.example;
+public class Login {
+    String[] creds = {"admin", "admin"};
+    boolean login(String u, String p) {
+        return u.equals(creds[0]) && p.equals(creds[1]);
+    }
+}
+"""
+
+A15_CLEAN = """package com.example;
+public class Login {
+    boolean login(String u, String p) {
+        return api.check(u, p);
+    }
+}
+"""
+
+
+def test_a15_test_pair_finding(tmp_path):
+    res = run("BS-A15", make_ctx(tmp_path, {"Login.java": A15_VULN}))
+    assert res.status == RuleStatus.FINDING
+    assert res.severity.value == "medium"
+    assert res.evidence and res.evidence[0].line_start == 3
+    assert res.severity_rationale and res.confidence_rationale
+
+
+def test_a15_no_pair_passes(tmp_path):
+    res = run("BS-A15", make_ctx(tmp_path, {"Login.java": A15_CLEAN}))
+    assert res.status == RuleStatus.PASS

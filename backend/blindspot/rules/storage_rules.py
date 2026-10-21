@@ -1,4 +1,4 @@
-"""Blindspot storage rules (BS-S01 .. BS-S20): insecure data storage & privacy.
+"""Blindspot storage rules (BS-S01 .. BS-S25): insecure data storage & privacy.
 
 Each rule inspects real artifacts (decompiled sources, decoded resources,
 assets) and reports only what it actually finds, with real 1-based line
@@ -25,6 +25,11 @@ Rule index:
   BS-S18  Backup rules including sensitive data domains
   BS-S19  Sensitive data in temporary files
   BS-S20  Secrets leaked via System.out.println / printStackTrace
+  BS-S21  Auto Backup enabled without exclusion rules
+  BS-S22  Sensitive data in notifications
+  BS-S23  PII (email/phone/card) written to logcat
+  BS-S24  Sensitive activity without FLAG_SECURE (manifest-driven)
+  BS-S25  Android Keystore key disables randomized encryption
 """
 
 from __future__ import annotations
@@ -1762,6 +1767,460 @@ class BS_S20_PrintStackTraceLeak(Rule):
 
 
 # ---------------------------------------------------------------------------
+# BS-S21: sensitive data copied to clipboard via ClipboardManager
+# ---------------------------------------------------------------------------
+
+_CLIPMGR_RX = re.compile(r"\bsetPrimaryClip\s*\(")
+_CLIPMGR_SENSITIVE_RX = re.compile(
+    r"(?:password|passwd|pwd|token|secret|otp)", re.IGNORECASE
+)
+
+
+class BS_S21_AutoBackupWithoutExclusions(Rule):
+    id = "BS-S21"
+    title = "Auto Backup enabled without exclusion rules"
+    description = (
+        "The manifest does not disable backups (android:allowBackup is not "
+        "false) and defines no fullBackupContent or dataExtractionRules, so "
+        "on API 23+ Android Auto Backup uploads the app's private data "
+        "(SharedPreferences, databases, files) to the user's Google Drive."
+    )
+    rationale = (
+        "Auto Backup copies the app's internal data off the device. If the "
+        "app stores tokens, credentials or personal data without encryption, "
+        "that data lands in cloud backups outside the app's control. "
+        "Exclusion rules are the mechanism to keep sensitive domains out of "
+        "backups."
+    )
+    category = "storage"
+    default_severity = Severity.MEDIUM
+    owasp = ["M9"]
+    cwe = ["CWE-200"]
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "If backups are not needed, set android:allowBackup=\"false\". "
+        "Otherwise define android:fullBackupContent / "
+        "android:dataExtractionRules excluding sensitive domains "
+        "(sharedpref, databases) and encrypt any sensitive data at rest."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/200.html",
+        "https://developer.android.com/guide/topics/data/autobackup",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return ctx.manifest is not None
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        m = ctx.manifest
+        assert m is not None
+        if m.allow_backup is False:
+            return pass_result(self, "android:allowBackup is false: backups disabled.")
+        if m.full_backup_content or m.data_extraction_rules:
+            return pass_result(
+                self,
+                "Backup/exclusion rules are configured; their content is "
+                "assessed by BS-S18.",
+            )
+        if m.target_sdk is not None and m.target_sdk < 23:
+            return pass_result(
+                self,
+                f"targetSdkVersion is {m.target_sdk}: Android Auto Backup "
+                "(API 23+) does not apply.",
+            )
+        ev = evidence_simple(
+            ctx,
+            ctx.manifest_xml_path or "AndroidManifest.xml",
+            "allowBackup is not false and no backup exclusion rules are "
+            "declared; Auto Backup applies on API 23+.",
+        )
+        return needs_review(
+            self,
+            "Auto Backup is enabled with no exclusion rules: app-private "
+            "data will be uploaded to Google Drive on API 23+.",
+            evidence=[ev],
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Backed-up SharedPreferences, databases and files leave the "
+                "device; if any hold credentials, tokens or personal data, "
+                "that data is exposed in cloud backups."
+            ),
+            confidence_rationale=(
+                "The manifest state is explicit (backups allowed, no "
+                "exclusion rules), but whether the app actually stores "
+                "sensitive data is not proven statically."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-S22: sensitive data in notifications
+# ---------------------------------------------------------------------------
+
+_NOTIF_RX = re.compile(
+    r"NotificationCompat\s*\.\s*Builder|setContentText\s*\("
+)
+_NOTIF_SENSITIVE_RX = re.compile(
+    r"(?:password|passwd|pwd|token|secret|otp)", re.IGNORECASE
+)
+
+
+class BS_S22_SensitiveNotifications(Rule):
+    id = "BS-S22"
+    title = "Sensitive data in notifications"
+    description = (
+        "NotificationCompat.Builder / setContentText calls with password/"
+        "OTP/token/secret keywords on nearby lines, indicating sensitive "
+        "data shown in a system notification."
+    )
+    rationale = (
+        "Notifications appear on the lock screen and in the notification "
+        "shade where shoulder surfers, screenshots, and notification-"
+        "listener apps can read them; secrets and OTPs do not belong "
+        "there."
+    )
+    category = "storage"
+    default_severity = Severity.MEDIUM
+    owasp = ["M9"]
+    cwe = ["CWE-200"]
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "Never put passwords, tokens, or OTPs in notification text. Send "
+        "generic prompts (\"Your code is ready in the app\") and mark "
+        "sensitive notifications as VISIBILITY_SECRET."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/200.html",
+        "https://developer.android.com/training/notify-user/build-notification",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _has_java(ctx)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        evidence: list[Evidence] = []
+        for hit in grep(_NOTIF_RX.pattern, iter_source_files(ctx)):
+            window = _window_text(hit.path, hit.line_no, radius=8)
+            if _NOTIF_SENSITIVE_RX.search(window):
+                evidence.append(evidence_from_hit(
+                    ctx, hit,
+                    description="Notification built near sensitive keyword "
+                                "(password/OTP/token/secret)",
+                ))
+                if len(evidence) >= _MAX_EVIDENCE:
+                    break
+        if not evidence:
+            return pass_result(
+                self,
+                "No notification construction adjacent to sensitive "
+                "keywords was found.",
+            )
+        return finding(
+            self,
+            f"Found {len(evidence)} notification call(s) adjacent to "
+            "sensitive keywords.",
+            evidence=_cap(evidence),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "Secrets or OTPs in notifications are visible on lock "
+                "screens and to notification-listener apps."
+            ),
+            confidence_rationale=(
+                "The notification call is real and a sensitive keyword "
+                "appears within 8 lines, but the exact text rendered is "
+                "not proven statically."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-S23: PII written to logcat
+# ---------------------------------------------------------------------------
+
+_PII_LOG_RX = re.compile(r"\bLog\.(?:d|i|v|w|e)\s*\(")
+_EMAIL_RX = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_PHONE_RX = re.compile(r"\b\d{10}\b")
+_CARD_RX = re.compile(r"\b\d{4}[- ]\d{4}(?:[- ]\d{4}){0,2}\b")
+
+
+class BS_S23_PiiInLogcat(Rule):
+    id = "BS-S23"
+    title = "PII written to logcat"
+    description = (
+        "Log.d/i/v/w/e calls whose logged statement contains an email "
+        "address, a 10-digit phone number, or a credit-card-like digit "
+        "group, indicating personal data written to logcat."
+    )
+    rationale = (
+        "Logcat is readable via ADB and captured in bug reports; PII in "
+        "logs leaks user data to anyone with log access and may violate "
+        "data-protection obligations."
+    )
+    category = "storage"
+    default_severity = Severity.MEDIUM
+    owasp = ["M9"]
+    cwe = ["CWE-532"]
+    masvs = ["MSTG-STORAGE"]
+    remediation = (
+        "Never log emails, phone numbers, or card data. Log redacted or "
+        "truncated identifiers instead and strip verbose logging from "
+        "release builds."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/532.html",
+        "https://developer.android.com/reference/android/util/Log",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _has_java(ctx)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        evidence: list[Evidence] = []
+        for hit in grep(_PII_LOG_RX.pattern, iter_source_files(ctx)):
+            pii = (
+                _EMAIL_RX.search(hit.line)
+                or _PHONE_RX.search(hit.line)
+                or _CARD_RX.search(hit.line)
+            )
+            if pii:
+                evidence.append(evidence_from_hit(
+                    ctx, hit,
+                    description=f"Log call containing PII pattern "
+                                f"('{pii.group(0)[:24]}')",
+                ))
+                if len(evidence) >= _MAX_EVIDENCE:
+                    break
+        if not evidence:
+            return pass_result(
+                self,
+                "No Log.d/i/v/w/e calls containing email, phone, or card "
+                "patterns were found.",
+            )
+        return finding(
+            self,
+            f"Found {len(evidence)} logging call(s) containing PII.",
+            evidence=_cap(evidence),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.MEDIUM,
+            severity_rationale=(
+                "PII in logcat is exposed via ADB, bug reports, and crash "
+                "dumps."
+            ),
+            confidence_rationale=(
+                "The PII pattern (email/phone/card digits) appears "
+                "literally inside the logged statement on a real source "
+                "line."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-S24: sensitive activity without FLAG_SECURE (manifest-driven)
+# ---------------------------------------------------------------------------
+
+_SENSITIVE_ACTIVITY_RX = re.compile(
+    r"(?i)(login|logon|password|passwd|banking|\bbank\b|payment|checkout|\bpin\b)"
+)
+_FLAG_SECURE_RX = re.compile(r"\bFLAG_SECURE\b")
+
+
+class BS_S24_SensitiveActivityNoFlagSecure(Rule):
+    id = "BS-S24"
+    title = "Sensitive activity without FLAG_SECURE"
+    description = (
+        "An activity declared in the manifest whose name suggests a "
+        "sensitive screen (login/password/banking/payment/PIN) while no "
+        "source file in the app sets WindowManager FLAG_SECURE. Needs "
+        "human review: the flag may be set via a base class or theme."
+    )
+    rationale = (
+        "Without FLAG_SECURE, sensitive activities appear in the recent-"
+        "tasks thumbnail and can be captured by screenshots or screen "
+        "recording, leaking credentials or financial data."
+    )
+    category = "storage"
+    default_severity = Severity.MEDIUM
+    owasp = ["M9"]
+    cwe = ["CWE-200"]
+    masvs = ["MSTG-PLATFORM"]
+    remediation = (
+        "Call getWindow().setFlags(FLAG_SECURE, FLAG_SECURE) in onCreate() "
+        "of activities handling credentials, tokens, banking, or payment "
+        "data."
+    )
+    references = [
+        "https://developer.android.com/reference/android/view/WindowManager.LayoutParams#FLAG_SECURE",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _has_java(ctx)
+
+    def _sensitive_activity_names(self, ctx: ScanContext) -> list[str]:
+        names: list[str] = []
+        if ctx.manifest is not None:
+            for comp in ctx.manifest.activities:
+                if _SENSITIVE_ACTIVITY_RX.search(comp.name or ""):
+                    names.append(comp.name)
+        else:
+            for path in iter_source_files(ctx):
+                text = read_text_capped(path)
+                if text is None:
+                    continue
+                for m in _CLASS_RX.finditer(text):
+                    if _SENSITIVE_ACTIVITY_RX.search(m.group(1)):
+                        names.append(m.group(1))
+        seen: set[str] = set()
+        out: list[str] = []
+        for n in names:
+            if n not in seen:
+                seen.add(n)
+                out.append(n)
+        return out
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        names = self._sensitive_activity_names(ctx)
+        if not names:
+            return pass_result(
+                self,
+                "No login/password/banking-named activities were declared "
+                "in the manifest.",
+            )
+        if grep(_FLAG_SECURE_RX.pattern, iter_source_files(ctx)):
+            return pass_result(
+                self,
+                "Sensitive-named activities exist, but FLAG_SECURE is set "
+                "somewhere in the decompiled sources.",
+            )
+        evidence: list[Evidence] = []
+        sources = list(iter_source_files(ctx))
+        for name in names:
+            simple = name.rsplit(".", 1)[-1]
+            class_rx = re.compile(
+                r"(?m)^[ \t]*(?:public\s+|protected\s+|private\s+|final\s+|"
+                r"abstract\s+)*(?:class|object)\s+" + re.escape(simple) + r"\b"
+            )
+            for path in sources:
+                text = read_text_capped(path)
+                if text is None:
+                    continue
+                m = class_rx.search(text)
+                if m:
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    line = text.splitlines()[line_no - 1]
+                    hit = Hit(path=path, line_no=line_no, line=line,
+                              match=m)
+                    evidence.append(evidence_from_hit(
+                        ctx, hit,
+                        description=f"Sensitive activity '{name}' declared "
+                                    f"with no FLAG_SECURE set anywhere in "
+                                    f"the app's sources",
+                    ))
+                    break
+            if len(evidence) >= _MAX_EVIDENCE:
+                break
+        if not evidence:
+            return pass_result(
+                self,
+                "Sensitive-named activities are declared, but their "
+                "source classes were not found in the decompiled output.",
+            )
+        return needs_review(
+            self,
+            f"Found {len(evidence)} sensitive activity declaration(s) "
+            "with no FLAG_SECURE set anywhere in the app's sources.",
+            evidence=_cap(evidence),
+            severity=Severity.MEDIUM,
+            confidence=Confidence.LOW,
+            severity_rationale=(
+                "If the activity really displays credentials or financial "
+                "data, it can leak via task thumbnails or screenshots."
+            ),
+            confidence_rationale=(
+                "The activity name only suggests a sensitive screen, and "
+                "FLAG_SECURE could be applied via a base activity or "
+                "theme; manual review is required."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# BS-S25: MODE_WORLD_READABLE / MODE_WORLD_WRITEABLE (strict)
+# ---------------------------------------------------------------------------
+
+
+_KEYSTORE_WEAK_RX = re.compile(
+    r"setRandomizedEncryptionRequired\s*\(\s*false\s*\)"
+)
+
+
+class BS_S25_KeystoreDisablesRandomizedEncryption(Rule):
+    id = "BS-S25"
+    title = "Android Keystore key disables randomized encryption"
+    description = (
+        "KeyGenParameterSpec.Builder.setRandomizedEncryptionRequired(false) "
+        "is called when generating an Android Keystore key. This opts out "
+        "of the IND-CPA guarantee: encryption becomes deterministic."
+    )
+    rationale = (
+        "Without randomized encryption (fresh IV per operation), identical "
+        "plaintexts produce identical ciphertexts, leaking equality "
+        "patterns to anyone who obtains the encrypted data. The default "
+        "(true) exists precisely to prevent this."
+    )
+    category = "storage"
+    default_severity = Severity.HIGH
+    owasp = ["M10"]
+    cwe = ["CWE-327"]
+    masvs = ["MSTG-STORAGE", "MSTG-CRYPTO"]
+    remediation = (
+        "Remove the setRandomizedEncryptionRequired(false) call (the secure "
+        "default is true) or pass true explicitly. Ensure each encryption "
+        "uses a fresh random IV."
+    )
+    references = [
+        "https://cwe.mitre.org/data/definitions/327.html",
+        "https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder#setRandomizedEncryptionRequired(boolean)",
+    ]
+
+    def applies(self, ctx: ScanContext) -> bool:
+        return _has_java(ctx)
+
+    def check(self, ctx: ScanContext) -> RuleResult:
+        hits = grep(_KEYSTORE_WEAK_RX.pattern, iter_source_files(ctx))
+        if not hits:
+            return pass_result(
+                self,
+                "No setRandomizedEncryptionRequired(false) calls found.",
+            )
+        evidence = [
+            evidence_from_hit(
+                ctx, h,
+                description="Randomized encryption explicitly disabled for "
+                            "a Keystore key",
+            )
+            for h in hits[:_MAX_EVIDENCE]
+        ]
+        return finding(
+            self,
+            f"Found {len(hits)} Keystore key(s) with randomized encryption "
+            "disabled.",
+            evidence=_cap(evidence),
+            severity=Severity.HIGH,
+            confidence=Confidence.HIGH,
+            severity_rationale=(
+                "Deterministic encryption leaks plaintext equality, "
+                "undermining confidentiality of the protected data."
+            ),
+            confidence_rationale=(
+                "The API call is explicit in decompiled source; there is no "
+                "ambiguous overload."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Module rule registry
 # ---------------------------------------------------------------------------
 
@@ -1786,4 +2245,9 @@ RULES: list[Rule] = [
     BS_S18_BackupRulesSensitiveDomains(),
     BS_S19_SensitiveTempFiles(),
     BS_S20_PrintStackTraceLeak(),
+    BS_S21_AutoBackupWithoutExclusions(),
+    BS_S22_SensitiveNotifications(),
+    BS_S23_PiiInLogcat(),
+    BS_S24_SensitiveActivityNoFlagSecure(),
+    BS_S25_KeystoreDisablesRandomizedEncryption(),
 ]

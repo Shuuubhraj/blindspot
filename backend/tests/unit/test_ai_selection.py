@@ -130,3 +130,71 @@ def test_validate_ai_finding_omits_empty_sections(tmp_path):
     out = validate_ai_finding(raw, ctx)
     assert out is not None
     assert out["description"] == "An API key is hardcoded."
+
+
+# ---------------------------------------------------------------------------
+# Snippet-targeted review selection
+# ---------------------------------------------------------------------------
+
+from blindspot.ai.review import (
+    _merge_windows,
+    _pattern_hit_lines,
+    build_snippet_prompt,
+    select_review_snippets,
+)
+
+
+def _snippet_ctx(tmp_path: Path) -> ScanContext:
+    app_dir = tmp_path / "src" / "com" / "example" / "app"
+    app_dir.mkdir(parents=True)
+    lines = [f"// filler line {i}" for i in range(1, 101)]
+    lines[49] = 'String password = "hunter2"; // line 50'
+    lines[79] = 'webView.loadUrl(url); // line 80'
+    (app_dir / "Main.java").write_text("\n".join(lines))
+    ctx = ScanContext(scan_id="t", workdir=tmp_path,
+                      apk_path=tmp_path / "a.apk")
+    ctx.java_roots = [tmp_path / "src"]
+    ctx.manifest = ManifestData(package="com.example.app")
+    return ctx
+
+
+def test_pattern_hit_lines(tmp_path):
+    ctx = _snippet_ctx(tmp_path)
+    text = (tmp_path / "src" / "com" / "example" / "app" / "Main.java").read_text()
+    hits = _pattern_hit_lines(text)
+    assert 50 in hits and 80 in hits
+    assert 10 not in hits
+
+
+def test_merge_windows_overlapping():
+    merged = _merge_windows([50, 55], radius=10, total_lines=200)
+    assert merged == [(40, 65)]
+
+
+def test_merge_windows_disjoint():
+    merged = _merge_windows([50, 150], radius=10, total_lines=200)
+    assert merged == [(40, 60), (140, 160)]
+
+
+def test_merge_windows_clamped():
+    merged = _merge_windows([5], radius=10, total_lines=200)
+    assert merged == [(1, 15)]
+
+
+def test_select_review_snippets(tmp_path):
+    ctx = _snippet_ctx(tmp_path)
+    snippets, stats = select_review_snippets(ctx, radius=5)
+    assert len(snippets) == 2
+    rels = {(s[0], s[1], s[2]) for s in snippets}
+    assert any(r[1] == 45 and r[2] == 55 for r in rels)  # around line 50
+    assert any(r[1] == 75 and r[2] == 85 for r in rels)  # around line 80
+    assert stats["snippets_selected"] == 2
+
+
+def test_snippet_prompt_has_absolute_lines(tmp_path):
+    ctx = _snippet_ctx(tmp_path)
+    snippets, _ = select_review_snippets(ctx, radius=5)
+    prompt = build_snippet_prompt(snippets)
+    assert "absolute lines 45-55" in prompt
+    assert "absolute lines 75-85" in prompt
+    assert "ABSOLUTE file line numbers" in prompt

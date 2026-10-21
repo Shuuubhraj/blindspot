@@ -124,9 +124,9 @@ def assert_rationales(result):
 # ---------------------------------------------------------------------------
 
 def test_rules_count_and_ids_unique():
-    assert len(RULES) == 20
+    assert len(RULES) == 35
     ids = [r.id for r in RULES]
-    assert ids == [f"BS-N{i:02d}" for i in range(1, 21)]
+    assert ids == [f"BS-N{i:02d}" for i in range(1, 36)]
     assert all(r.category == "network" for r in RULES)
 
 
@@ -808,3 +808,355 @@ def test_n20_not_applicable_no_internet(tmp_path):
     m = manifest_with(permissions=[])
     ctx = make_ctx(tmp_path, manifest=m)
     assert run("BS-N20", ctx).status == RuleStatus.NOT_APPLICABLE
+
+
+# ---------------------------------------------------------------------------
+# BS-N21 .. BS-N35 (appended)
+# ---------------------------------------------------------------------------
+
+def test_n21_websocket_ws(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        '  Object ws = new WebSocket("ws://example.com/socket");\n'
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N21", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n21_websocket_wss_passes(tmp_path):
+    java = {"A.java": 'class A { Object ws = new WebSocket("wss://example.com/socket"); }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N21", ctx).status == RuleStatus.PASS
+
+
+def test_n22_debug_overrides_trust_anchors(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": (
+        "<network-security-config>"
+        "<debug-overrides><trust-anchors><certificates src=\"user\"/></trust-anchors></debug-overrides>"
+        "</network-security-config>"
+    )}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    r = run("BS-N22", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert_rationales(r)
+
+
+def test_n22_no_debug_overrides_passes(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": "<network-security-config><base-config/></network-security-config>"}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    assert run("BS-N22", ctx).status == RuleStatus.PASS
+
+
+def test_n23_domain_cleartext(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": (
+        "<network-security-config>"
+        "<domain-config cleartextTrafficPermitted=\"true\"><domain>legacy.example.com</domain></domain-config>"
+        "</network-security-config>"
+    )}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    r = run("BS-N23", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n23_domain_cleartext_false_passes(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": (
+        "<network-security-config>"
+        "<domain-config cleartextTrafficPermitted=\"false\"><domain>example.com</domain></domain-config>"
+        "</network-security-config>"
+    )}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    assert run("BS-N23", ctx).status == RuleStatus.PASS
+
+
+def test_n24_no_pinset_info(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": "<network-security-config><base-config/></network-security-config>"}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    r = run("BS-N24", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.INFO
+    assert_rationales(r)
+
+
+def test_n24_pinset_present_passes(tmp_path):
+    m = manifest_with(network_security_config="@xml/netsec")
+    res = {"xml/netsec.xml": (
+        "<network-security-config><domain-config><domain>example.com</domain>"
+        "<pin-set><pin digest=\"SHA-256\">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin></pin-set>"
+        "</domain-config></network-security-config>"
+    )}
+    ctx = make_ctx(tmp_path, manifest=m, res_files=res)
+    assert run("BS-N24", ctx).status == RuleStatus.PASS
+
+
+def test_n25_hardcoded_ip_http(tmp_path):
+    java = {"A.java": 'class A { String u = "http://203.0.113.10/api/v1"; }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N25", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert_rationales(r)
+
+
+def test_n25_https_ip_passes(tmp_path):
+    java = {"A.java": 'class A { String u = "https://203.0.113.10/api/v1"; }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N25", ctx).status == RuleStatus.PASS
+
+
+def test_n26_http_at_openconnection(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f() throws Exception {\n"
+        '    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("http://api.example.com/x").openConnection();\n'
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N26", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n26_https_at_sink_passes(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f() throws Exception {\n"
+        '    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://api.example.com/x").openConnection();\n'
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N26", ctx).status == RuleStatus.PASS
+
+
+def test_n27_legacy_tls_context(tmp_path):
+    java = {"A.java": 'class A { void f() throws Exception { javax.net.ssl.SSLContext.getInstance("TLSv1"); } }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N27", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n27_modern_tls_passes(tmp_path):
+    java = {"A.java": 'class A { void f() throws Exception { javax.net.ssl.SSLContext.getInstance("TLSv1.3"); } }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N27", ctx).status == RuleStatus.PASS
+
+
+def test_n28_allow_all_installed(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f(javax.net.ssl.HttpsURLConnection c) {\n"
+        "    c.setHostnameVerifier(javax.net.ssl.SSLSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);\n"
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N28", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n28_no_install_passes(tmp_path):
+    java = {"A.java": "class A { void f() { int x = 1; } }\n"}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N28", ctx).status == RuleStatus.PASS
+
+
+def test_n29_swallowing_trust_manager(tmp_path):
+    java = {"T.java": (
+        "import javax.net.ssl.X509TrustManager;\n"
+        "class T implements X509TrustManager {\n"
+        "  public void checkClientTrusted(java.security.cert.X509Certificate[] c, String t) {}\n"
+        "  public void checkServerTrusted(java.security.cert.X509Certificate[] c, String t) {\n"
+        "    try { validate(c); } catch (Exception e) { /* ignore */ }\n"
+        "  }\n"
+        "  void validate(java.security.cert.X509Certificate[] c) throws Exception {}\n"
+        "  public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N29", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n29_empty_body_passes(tmp_path):
+    # empty checkServerTrusted is BS-N03 territory, not BS-N29
+    java = {"T.java": (
+        "import javax.net.ssl.X509TrustManager;\n"
+        "class T implements X509TrustManager {\n"
+        "  public void checkClientTrusted(java.security.cert.X509Certificate[] c, String t) {}\n"
+        "  public void checkServerTrusted(java.security.cert.X509Certificate[] c, String t) {}\n"
+        "  public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N29", ctx).status == RuleStatus.PASS
+
+
+def test_n30_redirect_near_http(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f() throws Exception {\n"
+        '    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("http://example.com/").openConnection();\n'
+        "    c.setInstanceFollowRedirects(true);\n"
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N30", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert_rationales(r)
+
+
+def test_n30_redirect_https_only_passes(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f() throws Exception {\n"
+        '    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://example.com/").openConnection();\n'
+        "    c.setInstanceFollowRedirects(true);\n"
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N30", ctx).status == RuleStatus.PASS
+
+
+def test_n31_hardcoded_proxy_constructor(tmp_path):
+    java = {"A.java": (
+        "import java.net.*;\n"
+        "class A {\n"
+        "  Proxy p = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(\"192.0.2.1\", 8080));\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N31", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+    assert_rationales(r)
+
+
+def test_n31_no_proxy_passes(tmp_path):
+    java = {"A.java": "class A { int x = 1; }\n"}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N31", ctx).status == RuleStatus.PASS
+
+
+def test_n32_graphql_no_auth(tmp_path):
+    java = {"A.java": 'class A { String EP = "/graphql"; }\n'}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N32", ctx)
+    assert r.status == RuleStatus.NEEDS_REVIEW
+    assert r.severity == Severity.MEDIUM
+    assert_rationales(r)
+
+
+def test_n32_graphql_with_auth_passes(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        '  String EP = "/graphql";\n'
+        '  void f(java.net.HttpURLConnection c) { c.setRequestProperty("Authorization", "Bearer x"); }\n'
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N32", ctx).status == RuleStatus.PASS
+
+
+def test_n33_lambda_verifier(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f(javax.net.ssl.HttpsURLConnection c) {\n"
+        "    c.setHostnameVerifier((hostname, session) -> true);\n"
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N33", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.HIGH
+    assert_rationales(r)
+
+
+def test_n33_strict_lambda_passes(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f(javax.net.ssl.HttpsURLConnection c) {\n"
+        "    c.setHostnameVerifier((hostname, session) -> hostname.equals(\"example.com\"));\n"
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N33", ctx).status == RuleStatus.PASS
+
+
+def test_n34_custom_dns(tmp_path):
+    java = {"A.java": (
+        "import okhttp3.Dns;\n"
+        "class A {\n"
+        "  okhttp3.OkHttpClient c = new okhttp3.OkHttpClient.Builder()\n"
+        "      .dns(new Dns() {\n"
+        "        public java.util.List<java.net.InetAddress> lookup(String h) { return null; }\n"
+        "      }).build();\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N34", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.LOW
+    assert_rationales(r)
+
+
+def test_n34_system_dns_passes(tmp_path):
+    java = {"A.java": (
+        "import okhttp3.Dns;\n"
+        "class A {\n"
+        "  okhttp3.OkHttpClient c = new okhttp3.OkHttpClient.Builder().dns(Dns.SYSTEM).build();\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N34", ctx).status == RuleStatus.PASS
+
+
+def test_n35_token_in_url_at_sink(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f() throws Exception {\n"
+        '    java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://api.example.com/x?token=abc123").openConnection();\n'
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    r = run("BS-N35", ctx)
+    assert r.status == RuleStatus.FINDING
+    assert r.severity == Severity.MEDIUM
+    assert_rationales(r)
+
+
+def test_n35_token_in_header_passes(tmp_path):
+    java = {"A.java": (
+        "class A {\n"
+        "  void f(java.net.HttpURLConnection c) {\n"
+        '    c.setRequestProperty("Authorization", "Bearer abc123");\n'
+        "  }\n"
+        "}\n"
+    )}
+    ctx = make_ctx(tmp_path, java_files=java)
+    assert run("BS-N35", ctx).status == RuleStatus.PASS
