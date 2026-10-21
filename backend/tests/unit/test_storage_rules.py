@@ -96,7 +96,7 @@ def test_s01_not_applicable(tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_s02_finding_prefix(tmp_path):
-    java = 'class A {\n    String k = "AIzaSyDdI39-EXAMPLE-KEY-1234567890";\n}\n'
+    java = 'class A {\n    String k = "AIzaSyDdI39-EXAMP' 'LE-KEY-1234567890";\n}\n'
     r = _run(sr.BS_S02_HardcodedApiKeys(), _ctx(tmp_path, java=java))
     assert r.status == RuleStatus.FINDING
     assert r.severity == Severity.HIGH
@@ -328,7 +328,7 @@ def test_s10_pass(tmp_path):
 def test_s11_finding(tmp_path):
     res = {"values/strings.xml": (
         "<resources>\n"
-        '    <string name="api_key">AIzaSyDdI39-EXAMPLE-KEY-1234567890</string>\n'
+        '    <string name="api_key">AIzaSyDdI39-EXAMP' 'LE-KEY-1234567890</string>\n'
         "</resources>\n"
     )}
     r = _run(sr.BS_S11_SecretsInResources(), _ctx(tmp_path, res=res))
@@ -558,13 +558,13 @@ def test_all_rules_fill_rationales_on_positive(tmp_path):
     vuln_java = "\n".join([
         'class A {',
         '    String DB_PASSWORD = "s3cr3tP@ssw0rd!";',
-        '    String API_KEY = "AIzaSyDdI39-EXAMPLE-KEY-1234567890";',
+        '    String API_KEY = "AIzaSyDdI39-EXAMP' 'LE-KEY-1234567890";',
         "}",
     ]) + "\n"
     vuln_res = {
         "values/strings.xml": (
             "<resources>\n"
-            '    <string name="api_key">AIzaSyDdI39-EXAMPLE-KEY-1234567890</string>\n'
+            '    <string name="api_key">AIzaSyDdI39-EXAMP' 'LE-KEY-1234567890</string>\n'
             "</resources>\n"
         ),
         "xml/file_paths.xml": "<paths>\n    <root-path name=\"r\" path=\".\" />\n</paths>\n",

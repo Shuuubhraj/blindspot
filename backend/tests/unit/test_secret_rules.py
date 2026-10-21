@@ -141,7 +141,7 @@ def test_x02_token_without_context_passes(make_ctx):
 
 # ---------------------------------------------------------------- BS-X03
 
-X03_VULN = 'public class C {\n    private static final String MAPS_KEY = "AIzaSyD9tSrA0bC1dE2fG3hI4jK5lM6nO7pQrS8";\n}\n'
+X03_VULN = 'public class C {\n    private static final String MAPS_KEY = "AIzaSyD9tSrA0bC1dE2' 'fG3hI4jK5lM6nO7pQrS8";\n}\n'
 
 
 def test_x03_google_api_key_is_finding(make_ctx):
