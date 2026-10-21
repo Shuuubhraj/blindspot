@@ -210,6 +210,12 @@
     .hero .logo-badge{animation:none}
     .dstage.active .st-ic{animation:none}
   }
+
+  .faq{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-top:14px}
+  .faq .q{font-size:16.5px;font-weight:700}
+  .faq .q::before{content:"Q. ";color:var(--blue)}
+  .faq .a{color:var(--text-dim);font-size:15.3px;margin-top:7px}
+  .faq .a strong{color:var(--text)}
 </style>
 </head>
 <body>
@@ -229,7 +235,7 @@
     <a class="nl" href="#ai">AI Reviewer</a>
     <a class="nl" href="#buttons">AI Verify and Fix</a>
     <a class="nl" href="#reports">Reports</a>
-    <a class="nl" href="#interview">Interview Q and A</a>
+    <a class="nl" href="#faq">FAQ</a>
     <a class="nl" href="#author">Author</a>
     <a class="nl github-link" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener" style="color:#fff;font-weight:700">GitHub ↗</a>
   </div>
@@ -549,34 +555,31 @@
       <li><strong>Interfaces:</strong> the web console, the REST API, and the <code>blindspot</code> CLI (Typer), which can run scans and start the server from the terminal.</li>
       <li><strong>Quality bar:</strong> 542 automated tests (524 unit + 18 integration) cover the rules, the manifest parser, the AI selection and verification logic, the cross-engine merge and the API endpoints.</li>
     </ul>
+    <div style="margin-top:22px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <a class="btn" href="https://raw.githubusercontent.com/Shuuubhraj/blindspot/main/samples/blindspot-sample-report-diva.pdf" target="_blank" rel="noopener">Download a sample report (DIVA APK)</a>
+      <span style="color:var(--text-dim);font-size:14.5px">A real Blindspot report generated for DIVA, the Damn Insecure and Vulnerable App used for security training.</span>
+    </div>
   </div>
 </section>
 
-<section id="interview">
+<section id="faq">
   <div class="wrap">
-    <div class="kicker">Interview prep</div>
-    <h2>Likely questions, answered the way you would say them</h2>
-    <p class="lead">Short, first-person answers. Read them once, then say them in your own words.</p>
+    <div class="kicker">FAQ</div>
+    <h2>Frequently asked questions</h2>
 
-    <div class="qa"><div class="q">How did you build this tool?</div><div class="a">"I built it in <strong>Python</strong> with a <strong>FastAPI</strong> backend and a <strong>React and TypeScript</strong> frontend. The flow is a pipeline: the APK is validated, extracted, its manifest is parsed, then <strong>JADX and apktool</strong> decompile it. After that three engines analyse the code: my own <strong>200 hand-written rules</strong>, <strong>MobSFScan</strong> as an independent second engine, and a <strong>local AI model</strong> through Ollama. The results are cross-checked against each other, stored in SQLite, and exported as HTML, PDF and JSON reports."</div></div>
+    <div class="faq"><div class="q">Is Blindspot free?</div><div class="a">Yes. Blindspot is open source and runs on your own machine. There are no subscriptions and no per-scan charges, and there is <strong>No AI Cost</strong> either, because the AI model also runs locally on your hardware.</div></div>
 
-    <div class="qa"><div class="q">Why did you build it? What problem does it solve?</div><div class="a">"As a tester I did not want to upload client APKs to cloud scanners, that is a confidentiality problem. And manual review of decompiled code is slow. So I built a scanner that runs <strong>completely on-device</strong>, including the AI. Nothing leaves the machine, and it works offline."</div></div>
+    <div class="faq"><div class="q">Does it need the internet?</div><div class="a">Only for the one-time setup, to download the tools and the AI model. After that, Blindspot works <strong>Without Internet</strong>, fully offline.</div></div>
 
-    <div class="qa"><div class="q">How does it test an APK, technically?</div><div class="a">"It is <strong>static analysis</strong>, the app is never run. I parse the binary manifest with my own AXML parser, decompile DEX to Java with JADX, then run pattern and data-flow checks over the manifest, source, resources and native libraries. Every finding has to cite a real file and line number as evidence."</div></div>
+    <div class="faq"><div class="q">Is my APK uploaded anywhere?</div><div class="a">Never. There are <strong>No Cloud Services</strong> involved at any stage. The APK, the decompiled code, the findings and the reports stay on your computer.</div></div>
 
-    <div class="qa"><div class="q">What are the 200 checks?</div><div class="a">"They are grouped in nine categories: network is the biggest with 35, WebView 30, storage 25, then manifest, platform, secrets and supply chain at 20 each, crypto and authentication at 15 each. Every rule is a small Python class with its own unit tests, and each maps to <strong>OWASP Mobile Top 10, MASVS and CWE</strong>."</div></div>
+    <div class="faq"><div class="q">What do I need to run it?</div><div class="a">A Windows, Linux or macOS machine with <strong>Python 3.12</strong> and <strong>Java</strong>, plus <strong>JADX</strong> and <strong>apktool</strong> for decompiling. <strong>Ollama</strong> is optional and only needed for the AI features. The GitHub README has step-by-step setup instructions.</div></div>
 
-    <div class="qa"><div class="q">How does the AI part work?</div><div class="a">"Ollama serves a code model, <strong>qwen2.5-coder:7b</strong>, locally. Blindspot scores the files, skips library code, and sends the model <strong>targeted snippets</strong> around suspicious code instead of whole files, which is three to four times faster. The model must reply in strict JSON with the file, line and the exact code snippet as proof."</div></div>
+    <div class="faq"><div class="q">Which apps can it scan?</div><div class="a">Any Android APK. Blindspot performs static analysis, so the app itself is never run. Heavily obfuscated apps still scan, though code readability and some checks may be reduced.</div></div>
 
-    <div class="qa"><div class="q">AI models hallucinate. How do you handle that?</div><div class="a">"I do not trust the model, I verify it. Before an AI finding is accepted, the backend checks the file exists, the line numbers are in range, and the quoted snippet matches the real code <strong>word for word</strong>. If the check fails, the finding is labelled unverified, not deleted and not dressed up. The AI can corroborate a rule finding, but it can never remove one."</div></div>
+    <div class="faq"><div class="q">How is it different from MobSF?</div><div class="a">MobSFScan is actually one of Blindspot's three engines. On top of it, Blindspot adds its own <strong>200 checks</strong>, cross-verifies findings between independent engines to raise confidence, and adds a <strong>local AI reviewer</strong> with AI Verify and AI Fix, all in a tool built to run fully on-device.</div></div>
 
-    <div class="qa"><div class="q">What do the AI Verify and AI Fix buttons do?</div><div class="a">"They are on-demand, per finding. <strong>Verify</strong> asks the model to judge one finding against the real code and saves a true positive, false positive or uncertain verdict on it. <strong>Fix</strong> makes the model write a corrected version of the exact vulnerable snippet, with an explanation and caveats. I kept them on-demand because running a 7B model on every finding automatically would slow triage down."</div></div>
-
-    <div class="qa"><div class="q">Why three engines? Why not just use MobSF?</div><div class="a">"Because agreement is signal. If my rules and MobSFScan independently flag the <strong>same file and line</strong>, Blindspot merges them and raises the confidence automatically, with the reason recorded. A single tool's finding is a claim; two tools agreeing is evidence. And my own rules cover things generic scanners miss, like hardcoded secrets in Gradle files and SDK supply-chain risks."</div></div>
-
-    <div class="qa"><div class="q">What was the hardest part?</div><div class="a">"Two things. First, the manifest inside an APK is <strong>binary XML</strong>, so I had to write my own AXML parser to read it reliably. Second, making the AI fast and honest on a normal laptop CPU: snippet targeting for speed, and the verification layer so I could trust what it reports."</div></div>
-
-    <div class="qa"><div class="q">How do you know the tool itself is correct?</div><div class="a">"There are <strong>542 automated tests</strong>. Every rule has a vulnerable sample it must catch and a clean sample it must pass, and there are tests for the manifest parser, the cross-engine merge and the AI verification logic. If a change breaks a check, the suite says so immediately."</div></div>
+    <div class="faq"><div class="q">Can it scan iOS apps?</div><div class="a">No. Blindspot is built for <strong>Android APKs only</strong>.</div></div>
   </div>
 </section>
 
@@ -587,7 +590,7 @@
     <div class="card" style="margin-top:22px">
       <h3 style="font-size:20px">Rajput Shubhraj Singh</h3>
       <p style="margin-top:4px;color:var(--blue);font-weight:600;font-size:15px">Information Security Consultant · API, Mobile and Web Application Security Testing</p>
-      <p style="margin-top:14px">Shubhraj is a security tester who specialises in API, mobile and web application penetration testing. He is currently deployed with <strong style="color:var(--text)">ICICI Bank</strong> through <strong style="color:var(--text)">qSEAp</strong>, where he performs manual security testing of banking applications. He holds the <strong style="color:var(--text)">CRTP (Certified Red Team Professional)</strong> certification from Altered Security, and he has reported a security vulnerability to <strong style="color:var(--text)">Yahoo through HackerOne</strong> (CVSS 4.3, Medium severity).</p>
+      <p style="margin-top:14px">Shubhraj is a security tester who specialises in API, mobile and web application penetration testing. He currently works with <strong style="color:var(--text)">qSEAp</strong>, where he performs manual security testing of banking applications. He holds the <strong style="color:var(--text)">CRTP (Certified Red Team Professional)</strong> certification from Altered Security, and he has reported a security vulnerability to <strong style="color:var(--text)">Yahoo through HackerOne</strong> (CVSS 4.3, Medium severity).</p>
       <p style="margin-top:12px">Blindspot grew out of his own day-to-day testing work. He wanted a scanner he could point at a client APK without uploading it to anyone's cloud, with checks he could audit himself and an AI reviewer that shows its evidence. So he built one.</p>
       <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">
         <a class="btn" href="https://github.com/Shuuubhraj/blindspot" target="_blank" rel="noopener">Blindspot on GitHub</a>
